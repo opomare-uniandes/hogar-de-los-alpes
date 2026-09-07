@@ -1,0 +1,48 @@
+{
+  "type": "record",
+  "name": "TrabajoSiniestroCreado",
+  "namespace": "com.hda.eventos.integracion",
+  "doc": "Evento de INTEGRACION (v1). Contrato publicado hacia consumidores externos (Hogares de los Alpes, partners B2B2C) - escenario de interoperabilidad 3.3. Deliberadamente distinto del evento de dominio TrabajoCreado: solo expone lo que un consumidor externo necesita, para poder evolucionar el dominio interno sin romper el contrato.",
+  "fields": [
+    {
+      "name": "trabajoId",
+      "type": "string"
+    },
+    {
+      "name": "partnerId",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null
+    },
+    {
+      "name": "categoria",
+      "type": "string"
+    },
+    {
+      "name": "ciudad",
+      "type": "string"
+    },
+    {
+      "name": "esSiniestro",
+      "type": "boolean"
+    },
+    {
+      "name": "moneda",
+      "type": "string"
+    },
+    {
+      "name": "fechaEvento",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    {
+      "name": "version",
+      "type": "string",
+      "default": "v1"
+    }
+  ]
+}

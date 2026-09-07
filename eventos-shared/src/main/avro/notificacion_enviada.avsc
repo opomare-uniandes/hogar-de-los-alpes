@@ -1,0 +1,36 @@
+{
+  "type": "record",
+  "name": "NotificacionEnviada",
+  "namespace": "com.hda.eventos.notificaciones",
+  "doc": "Evento publicado por notificaciones-service DESPUES de simular el envio de un email al cliente cuando se crea un Trabajo. Igual que TrabajoSiniestroCreado, es un evento distinto de TrabajoCreado (evento de dominio): solo expone lo que interesa saber sobre la notificacion en si (canal, destinatario, ni siquiera el detalle del Trabajo).",
+  "fields": [
+    {
+      "name": "trabajoId",
+      "type": "string"
+    },
+    {
+      "name": "clienteId",
+      "type": "string"
+    },
+    {
+      "name": "canal",
+      "type": "string",
+      "default": "EMAIL"
+    },
+    {
+      "name": "destinatario",
+      "type": "string"
+    },
+    {
+      "name": "mensaje",
+      "type": "string"
+    },
+    {
+      "name": "fechaEnvio",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    }
+  ]
+}

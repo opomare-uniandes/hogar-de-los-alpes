@@ -1,0 +1,9 @@
+plugins {
+    id 'java'
+    id 'java-library' // necesario para poder usar la configuracion "api" abajo
+    id 'com.github.davidmc24.gradle.plugin.avro' version '1.9.1'
+}
+
+dependencies {
+    api "org.apache.avro:avro:${avroVersion}"
+}

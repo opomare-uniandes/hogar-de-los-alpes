@@ -1,0 +1,69 @@
+{
+  "type": "record",
+  "name": "TrabajoCreado",
+  "namespace": "com.hda.eventos.dominio",
+  "doc": "Evento de DOMINIO. Lo consumen integracion-service y notificaciones-service (cada uno con su propia suscripcion Shared, independiente entre si). No se publica tal cual hacia afuera (ver TrabajoSiniestroCreado y NotificacionEnviada, que son los eventos de integracion).",
+  "fields": [
+    {
+      "name": "trabajoId",
+      "type": "string"
+    },
+    {
+      "name": "clienteId",
+      "type": "string"
+    },
+    {
+      "name": "categoriaServicio",
+      "type": "string"
+    },
+    {
+      "name": "urgencia",
+      "type": {
+        "type": "enum",
+        "name": "Urgencia",
+        "symbols": [
+          "BAJA",
+          "MEDIA",
+          "ALTA",
+          "CRITICA"
+        ]
+      }
+    },
+    {
+      "name": "ciudad",
+      "type": "string"
+    },
+    {
+      "name": "origenTrabajo",
+      "type": {
+        "type": "enum",
+        "name": "OrigenTrabajo",
+        "symbols": [
+          "MARKETPLACE",
+          "SINIESTRO",
+          "SUSCRIPCION"
+        ]
+      }
+    },
+    {
+      "name": "partnerId",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null
+    },
+    {
+      "name": "moneda",
+      "type": "string",
+      "default": "COP"
+    },
+    {
+      "name": "fechaCreacion",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    }
+  ]
+}

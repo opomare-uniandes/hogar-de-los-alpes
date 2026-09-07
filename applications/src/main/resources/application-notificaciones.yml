@@ -1,0 +1,18 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: notificaciones-service
+
+hda:
+  pulsar:
+    service-url: pulsar://localhost:6650
+    topic-trabajo-creado: persistent://hda/trabajos/trabajo-creado
+    topic-notificacion-enviada: persistent://hda/notificaciones/notificacion-enviada
+    subscription: notificaciones-service-sub
+
+logging:
+  level:
+    org.apache.pulsar.client.impl.ProducerStatsRecorderImpl: WARN
+    org.apache.pulsar.client.impl.ConsumerStatsRecorderImpl: WARN

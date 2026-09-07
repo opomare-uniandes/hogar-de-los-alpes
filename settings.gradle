@@ -1,0 +1,51 @@
+rootProject.name = 'hogar-de-los-alpes'
+
+include 'eventos-shared'
+
+include ':applications'
+project(':applications').projectDir = file('applications')
+
+// ---- trabajos-service ----
+include ':trabajos-model'
+project(':trabajos-model').projectDir = file('domain/model/trabajos-service')
+
+include ':trabajos-usecase'
+project(':trabajos-usecase').projectDir = file('domain/usecase/trabajos-service')
+
+include ':trabajos-reactive-web'
+project(':trabajos-reactive-web').projectDir = file('infrastructure/entry-points/reactive-web/trabajos-service')
+
+include ':trabajos-r2dbc-postgresql'
+project(':trabajos-r2dbc-postgresql').projectDir = file('infrastructure/driven-adapters/r2dbc-postgresql/trabajos-service')
+
+include ':trabajos-pulsar-event-bus'
+project(':trabajos-pulsar-event-bus').projectDir = file('infrastructure/driven-adapters/pulsar-event-bus/trabajos-service')
+
+// ---- integracion-service ----
+include ':integracion-model'
+project(':integracion-model').projectDir = file('domain/model/integracion-service')
+
+include ':integracion-usecase'
+project(':integracion-usecase').projectDir = file('domain/usecase/integracion-service')
+
+include ':integracion-pulsar-event-handler'
+project(':integracion-pulsar-event-handler').projectDir = file('infrastructure/entry-points/pulsar-event-handler/integracion-service')
+
+include ':integracion-pulsar-event-bus'
+project(':integracion-pulsar-event-bus').projectDir = file('infrastructure/driven-adapters/pulsar-event-bus/integracion-service')
+
+// ---- notificaciones-service ----
+include ':notificaciones-model'
+project(':notificaciones-model').projectDir = file('domain/model/notificaciones-service')
+
+include ':notificaciones-usecase'
+project(':notificaciones-usecase').projectDir = file('domain/usecase/notificaciones-service')
+
+include ':notificaciones-pulsar-event-handler'
+project(':notificaciones-pulsar-event-handler').projectDir = file('infrastructure/entry-points/pulsar-event-handler/notificaciones-service')
+
+include ':notificaciones-pulsar-event-bus'
+project(':notificaciones-pulsar-event-bus').projectDir = file('infrastructure/driven-adapters/pulsar-event-bus/notificaciones-service')
+
+include ':notificaciones-email-sender'
+project(':notificaciones-email-sender').projectDir = file('infrastructure/driven-adapters/email-sender/notificaciones-service')

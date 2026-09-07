@@ -1,0 +1,8 @@
+dependencies {
+    implementation project(':notificaciones-model')
+    implementation project(':eventos-shared')
+    implementation 'org.springframework:spring-context' // @Component, @Value
+    implementation 'jakarta.annotation:jakarta.annotation-api'
+    implementation "org.apache.pulsar:pulsar-client-reactive-adapter:${pulsarReactiveVersion}"
+    implementation 'org.apache.pulsar:pulsar-client-admin'
+}

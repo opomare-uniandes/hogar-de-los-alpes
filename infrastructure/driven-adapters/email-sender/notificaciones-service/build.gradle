@@ -1,0 +1,5 @@
+dependencies {
+    implementation project(':notificaciones-model')
+    implementation 'org.springframework:spring-context' // @Component
+    implementation 'org.slf4j:slf4j-api'
+}

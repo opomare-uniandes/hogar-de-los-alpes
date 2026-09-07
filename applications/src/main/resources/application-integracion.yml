@@ -1,0 +1,18 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: integracion-service
+
+hda:
+  pulsar:
+    service-url: pulsar://localhost:6650
+    topic-trabajo-creado: persistent://hda/trabajos/trabajo-creado
+    topic-trabajo-siniestro-creado: persistent://hda/integracion/trabajo-siniestro-creado
+    subscription: integracion-service-sub
+
+logging:
+  level:
+    org.apache.pulsar.client.impl.ProducerStatsRecorderImpl: WARN
+    org.apache.pulsar.client.impl.ConsumerStatsRecorderImpl: WARN
