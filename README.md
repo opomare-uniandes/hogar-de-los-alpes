@@ -4,6 +4,21 @@ Proyecto multi-módulo Gradle (Java 25) que implementa una porción mínima del 
 `Trabajo`, siguiendo DDD táctico y arquitectura hexagonal, con **Spring Boot WebFlux**
 (reactivo) y **Apache Pulsar + Avro** como bus de eventos.
 
+## Portal web
+
+El repositorio incluye en `frontend/` una aplicación React + TypeScript que permite
+crear trabajos y consultarlos por su identificador. Durante el desarrollo, Vite redirige
+`/api` a `trabajos-service` en el puerto `8081`.
+
+```shell
+cd frontend
+npm install
+npm run dev
+```
+
+La guía completa de ejecución, pruebas y configuración está en
+[`frontend/README.md`](frontend/README.md).
+
 ## Arquitectura (vista de componentes)
 
 Vista de alto nivel en tiempo de ejecución
