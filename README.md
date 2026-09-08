@@ -6,7 +6,7 @@ Proyecto multi-módulo Gradle (Java 25) que implementa una porción mínima del 
 
 ## Portal web
 
-El repositorio incluye en `frontend/` una aplicación React + TypeScript que permite
+El repositorio incluye en `frontend` una aplicación React + TypeScript que permite
 crear trabajos y consultarlos por su identificador. Durante el desarrollo, Vite redirige
 `/api` a `trabajos-service` en el puerto `8081`.
 
@@ -63,7 +63,7 @@ graph LR
 ```
 
 - Azul: los tres servicios Spring Boot (procesos independientes, cada uno con su propio
-  `main()` - ver `applications/`).
+  `main()` - ver `applications`).
 - Naranja: Postgres (solo lo usa `trabajos-service`).
 - Verde: los tópicos de Pulsar, viven dentro del broker.
 - Gris: actores externos al sistema. Lo importante del diagrama: ninguno de los tres servicios **se llama a otro
@@ -82,16 +82,16 @@ por eventos importa (Modificabilidad 1.1).
 
 Sigue el layout de carpetas del
 [scaffold-clean-architecture de Bancolombia](https://github.com/bancolombia/scaffold-clean-architecture)
-con `applications/`, `domain/` e `infrastructure/` como carpetas de **primer nivel del
-proyecto** (una por capa). Dentro de `domain/` e `infrastructure/` va primero el **tipo**
+con `applications`, `domain` e `infrastructure` como carpetas de **primer nivel del
+proyecto** (una por capa). Dentro de `domain` e `infrastructure` va primero el **tipo**
 de módulo (`model`/`usecase`, `entry-points/<adaptador>`, `driven-adapters/<adaptador>`) y
 el servicio (`trabajos-service`/`integracion-service`/`notificaciones-service`) queda como
-la carpeta más interna — la que directamente contiene su propio `build.gradle` y `src/`.
-Así, `domain/usecase` o `infrastructure/driven-adapters` se ven de inmediato bajando por
+la carpeta más interna — la que directamente contiene su propio `backend/build.gradle` y `src/`.
+Así, `domain` o `infrastructure` se ven de inmediato bajando por
 el árbol, sin que el nombre del servicio se interponga antes. La regla de dependencia se
-cumple igual: todo apunta hacia adentro, hacia `domain/model/<servicio>`.
+cumple igual: todo apunta hacia adentro, hacia `domain`.
 
-`applications/` es la excepción: ahí **no hay ambigüedad de nombres entre servicios**
+`applications` es la excepción: ahí **no hay ambigüedad de nombres entre servicios**
 (a diferencia de `model`, `usecase`, `pulsar-event-bus`, que se repiten), así que es un
 único módulo Gradle (`:applications`) que contiene los tres `main()`
 (`TrabajosServiceApplication`, `IntegracionServiceApplication`,
@@ -103,7 +103,7 @@ carpeta por servicio.
 Como el resto del repo sí tiene **tres servicios** en un solo build Gradle (algo que los
 ejemplos de un solo servicio del scaffold no cubren), esos nombres de proyecto Gradle se
 prefijan por servicio (`:trabajos-model`, `:integracion-usecase`, `:notificaciones-model`,
-etc. — ver `settings.gradle`) para no colisionar entre si.
+etc. — ver `backend/settings.gradle`) para no colisionar entre si.
 
 ```shell
 hda-trabajos-parent/
@@ -174,16 +174,16 @@ respectivamente. Son tres procesos/servicios Spring Boot independientes.
 
 | Decisión de diseño | Dónde vive en el código |
 | --- | --- |
-| Seedwork (Entity, ValueObject, AggregateRoot, DomainEvent) — POJOs sin dependencia de framework | `domain/model/trabajos-service/.../model/seedwork/` |
-| Agregado raíz `Trabajo` con Factory (`Trabajo.crear(...)`) | `domain/model/trabajos-service/.../model/trabajo/Trabajo.java` |
-| Objeto de valor `Moneda` pensado para el escenario de modificabilidad 1.3 (nuevo país sin tocar el resto del agregado) | `domain/model/trabajos-service/.../model/trabajo/Moneda.java` |
-| Arquitectura hexagonal: puertos (`TrabajoRepository`, `TrabajoEventPublisher`) en el dominio vs. adaptadores concretos | `domain/model/<servicio>/.../gateways/` (puertos) + `infrastructure/driven-adapters/*/<servicio>/` (adaptadores) |
-| CQS: comando `CrearTrabajoCommand`/`CrearTrabajoUseCase` vs. consulta `ConsultarTrabajoUseCase` | `domain/usecase/trabajos-service/.../creartrabajo/` y `.../consultartrabajo/` |
-| Evento de dominio `TrabajoCreado` (Avro) vs. evento de integración `TrabajoSiniestroCreado` (Avro, v1) — separación exigida por el escenario 3.3 | `eventos-shared/src/main/avro/*.avsc` |
-| Escalabilidad (escenario 2.3): suscripción `Shared` de Pulsar en los consumidores de trabajo-creado, para poder correr varias instancias en paralelo — demo en vivo: sección "Levantarlo todo con Docker Compose" | `infrastructure/entry-points/pulsar-event-handler/{integracion-service,notificaciones-service}/.../TrabajoCreadoListener.java` |
-| Persistencia real (no sqlite/h2), mínima (2 tablas) | `infrastructure/driven-adapters/r2dbc-postgresql/trabajos-service/src/main/resources/schema.sql` |
-| Modificabilidad (escenario 1.1): agregar un consumidor nuevo (`notificaciones-service`) sin tocar `trabajos-service` ni `integracion-service` - solo una suscripción `Shared` más sobre `trabajo-creado` | `infrastructure/entry-points/pulsar-event-handler/notificaciones-service/` |
-| Puerto separado para la acción real ("enviar" el email) vs. el evento que solo registra que ya se envió - mismo principio hexagonal que `TrabajoRepository`/`TrabajoEventPublisher` en trabajos-service | `domain/model/notificaciones-service/.../gateways/{EmailSender,NotificacionEnviadaPublisher}.java` |
+| Seedwork (Entity, ValueObject, AggregateRoot, DomainEvent) — POJOs sin dependencia de framework | `domain` |
+| Agregado raíz `Trabajo` con Factory (`Trabajo.crear(...)`) | `domain` |
+| Objeto de valor `Moneda` pensado para el escenario de modificabilidad 1.3 (nuevo país sin tocar el resto del agregado) | `domain` |
+| Arquitectura hexagonal: puertos (`TrabajoRepository`, `TrabajoEventPublisher`) en el dominio vs. adaptadores concretos | `domain` (puertos) + `infrastructure` (adaptadores) |
+| CQS: comando `CrearTrabajoCommand`/`CrearTrabajoUseCase` vs. consulta `ConsultarTrabajoUseCase` | `domain` y `.../consultartrabajo/` |
+| Evento de dominio `TrabajoCreado` (Avro) vs. evento de integración `TrabajoSiniestroCreado` (Avro, v1) — separación exigida por el escenario 3.3 | `eventos-shared` |
+| Escalabilidad (escenario 2.3): suscripción `Shared` de Pulsar en los consumidores de trabajo-creado, para poder correr varias instancias en paralelo — demo en vivo: sección "Levantarlo todo con Docker Compose" | `infrastructure` |
+| Persistencia real (no sqlite/h2), mínima (2 tablas) | `backend/infrastructure/driven-adapters/r2dbc-postgresql/trabajos-service/src/main/resources/schema.sql` |
+| Modificabilidad (escenario 1.1): agregar un consumidor nuevo (`notificaciones-service`) sin tocar `trabajos-service` ni `integracion-service` - solo una suscripción `Shared` más sobre `trabajo-creado` | `backend/infrastructure/entry-points/pulsar-event-handler/notificaciones-service` |
+| Puerto separado para la acción real ("enviar" el email) vs. el evento que solo registra que ya se envió - mismo principio hexagonal que `TrabajoRepository`/`TrabajoEventPublisher` en trabajos-service | `domain` |
 
 ## Versión de Spring Boot y de Gradle
 
@@ -202,11 +202,23 @@ El proyecto usa **Spring Boot 4.1.1**. Esa versión de su plugin de Gradle exige
    docker exec hda-pulsar bin/pulsar-admin namespaces create hda/notificaciones
    ```
 
-3. Compilar y correr cada servicio:
+3. Compilar los tres servicios. Los tres jars se generan en el mismo directorio
+   (`applications/build/libs/`), así que **no uses `clean` entre servicio y servicio**:
+   borraría los jars ya generados de los otros dos. Compílalos todos de una sola vez:
+
+```shell
+./gradlew :applications:bootJarTrabajos :applications:bootJarIntegracion :applications:bootJarNotificaciones
+```
+
+   (equivalente: `./gradlew :applications:assemble`, que depende de las tres tareas).
+
+   Si en algún momento necesitas una compilación totalmente limpia, corre `./gradlew clean`
+   **una sola vez** y luego el comando de arriba — nunca `clean` por servicio.
+
+3.1. Correr cada servicio (cada uno en su propia terminal):
     - `trabajos-service` (`com.hda.trabajos.TrabajosServiceApplication`) → puerto `8081`.
 
 ```shell
-./gradlew clean :applications:bootJarTrabajos
 java -jar applications/build/libs/trabajos-service.jar
 ```
 
@@ -214,7 +226,6 @@ java -jar applications/build/libs/trabajos-service.jar
   puerto `8082`.
 
 ```shell
-./gradlew clean :applications:bootJarIntegracion
 java -jar applications/build/libs/integracion-service.jar
 ```
 
@@ -222,7 +233,6 @@ java -jar applications/build/libs/integracion-service.jar
   puerto `8083`.
 
 ```shell
-./gradlew clean :applications:bootJarNotificaciones
 java -jar applications/build/libs/notificaciones-service.jar
 ```
 
