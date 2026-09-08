@@ -11,18 +11,21 @@ dependencies {
 
     implementation project(':integracion-pulsar-event-handler')
     implementation project(':integracion-pulsar-event-bus')
+    implementation project(':integracion-redis-idempotency')
     implementation project(':integracion-model')
     implementation project(':integracion-usecase')
 
     implementation project(':notificaciones-pulsar-event-handler')
     implementation project(':notificaciones-pulsar-event-bus')
     implementation project(':notificaciones-email-sender')
+    implementation project(':notificaciones-redis-idempotency')
     implementation project(':notificaciones-model')
     implementation project(':notificaciones-usecase')
 
     implementation 'org.springframework.boot:spring-boot-starter'
     implementation 'org.apache.pulsar:pulsar-client-api'
     implementation 'org.springframework.boot:spring-boot-r2dbc'
+    implementation 'org.springframework.boot:spring-boot-data-redis' // para excluir su autoconfig en trabajos-service
 }
 
 jar {

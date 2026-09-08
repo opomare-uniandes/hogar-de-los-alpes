@@ -1,6 +1,7 @@
 package com.hda.integracion.entrypoints.pulsar;
 
 import com.hda.eventos.dominio.TrabajoCreado;
+import com.hda.integracion.model.idempotencia.gateways.EventDeduplicationStore;
 import com.hda.integracion.model.trabajocreado.TrabajoCreadoEvento;
 import com.hda.integracion.usecase.traducirtrabajocreado.TraducirTrabajoCreadoUseCase;
 import jakarta.annotation.PostConstruct;
@@ -16,6 +17,7 @@ public class TrabajoCreadoListener {
 
     private final PulsarClient pulsarClient;
     private final TraducirTrabajoCreadoUseCase traducirTrabajoCreadoUseCase;
+    private final EventDeduplicationStore deduplicationStore;
     private final String topicoEntrada;
     private final String suscripcion;
     private static final Logger log = LoggerFactory.getLogger(TrabajoCreadoListener.class);
@@ -25,10 +27,12 @@ public class TrabajoCreadoListener {
     public TrabajoCreadoListener(
             PulsarClient pulsarClient,
             TraducirTrabajoCreadoUseCase traducirTrabajoCreadoUseCase,
+            EventDeduplicationStore deduplicationStore,
             @Value("${hda.pulsar.topic-trabajo-creado}") String topicoEntrada,
             @Value("${hda.pulsar.subscription}") String suscripcion) {
         this.pulsarClient = pulsarClient;
         this.traducirTrabajoCreadoUseCase = traducirTrabajoCreadoUseCase;
+        this.deduplicationStore = deduplicationStore;
         this.topicoEntrada = topicoEntrada;
         this.suscripcion = suscripcion;
     }
@@ -48,6 +52,7 @@ public class TrabajoCreadoListener {
         TrabajoCreado evento = mensaje.getValue();
 
         TrabajoCreadoEvento eventoDominio = new TrabajoCreadoEvento(
+                evento.getId(),
                 evento.getTrabajoId(),
                 evento.getPartnerId(),
                 evento.getCategoriaServicio(),
@@ -59,7 +64,14 @@ public class TrabajoCreadoListener {
 
         log.info("[EVENTO: TRABAJO-CREADO -> RECIBIDO: {}]", eventoDominio);
 
-        traducirTrabajoCreadoUseCase.ejecutar(eventoDominio)
+        deduplicationStore.registrarSiNoVisto(eventoDominio.id())
+                .flatMap(primeraVez -> {
+                    if (Boolean.FALSE.equals(primeraVez)) {
+                        // duplicado: se hizo ack para no reprocesar; no se ejecuta el caso de uso.
+                        return reactor.core.publisher.Mono.empty();
+                    }
+                    return traducirTrabajoCreadoUseCase.ejecutar(eventoDominio);
+                })
                 .doOnSuccess(v -> c.acknowledgeAsync(mensaje))
                 .doOnError(err -> c.negativeAcknowledge(mensaje))
                 .subscribe();

@@ -192,7 +192,60 @@ El proyecto usa **Spring Boot 4.1.1**. Esa versión de su plugin de Gradle exige
 
 ## Cómo levantarlo
 
-1. Infraestructura: `docker compose up -d` (Postgres en `5432`, Pulsar en `6650`/`8080`).
+> **Directorios.** Todos los comandos de esta sección se ejecutan **desde la raíz del
+> repositorio** (la carpeta que contiene este `README.md`). El `docker-compose.yml`, el
+> `gradlew` y el `.env` viven dentro de `backend/`, así que los comandos apuntan ahí
+> explícitamente (`-f backend/...`, `--env-file backend/.env`, `./backend/gradlew`).
+> Si prefieres, puedes `cd backend` una vez y omitir esos prefijos — al final de cada
+> paso se indica el equivalente "desde `backend/`".
+
+0. Credenciales por variables de entorno. Las credenciales de Postgres **no están
+   hardcodeadas** en el repositorio: se leen de variables de entorno, tanto en
+   `backend/docker-compose.yml` (para inicializar el contenedor) como en
+   `application-trabajos.yml` (para la conexión R2DBC de `trabajos-service`). Copia la
+   plantilla versionada y ajústala con tus propios valores:
+
+```shell
+   cp backend/.env.example backend/.env
+   # edita backend/.env y cambia al menos POSTGRES_PASSWORD
+   ```
+
+   El archivo `.env` real está en `.gitignore` (nunca se sube); solo se versiona la
+   plantilla `.env.example`.
+
+   | Variable | Para qué | Valor por defecto |
+   | --- | --- | --- |
+   | `POSTGRES_DB` | Nombre de la base de datos | `hda_trabajos` |
+   | `POSTGRES_USER` | Usuario de Postgres | `hda` |
+   | `POSTGRES_PASSWORD` | Contraseña de Postgres | `hda` (¡cámbiala!) |
+   | `POSTGRES_HOST` | Host que usa `trabajos-service` para conectarse | `localhost` |
+   | `POSTGRES_PORT` | Puerto de Postgres | `5432` |
+
+   Si no defines nada, aplican los valores por defecto (pensados solo para desarrollo
+   local). Si arrancas `trabajos-service` **fuera** de Docker Compose (con `java -jar`),
+   exporta las variables en esa terminal para que las lea la app, por ejemplo:
+
+```shell
+   set -a; source backend/.env; set +a
+   java -jar backend/applications/build/libs/trabajos-service.jar
+   ```
+
+1. Infraestructura: levanta Postgres (`5432`), Pulsar (`6650`/`8080`) y Redis (`6379`).
+   Redis lo usan `integracion-service` y `notificaciones-service` como almacén de
+   idempotencia (deduplicación de eventos por su `id`).
+
+```shell
+   docker compose --env-file backend/.env -f backend/docker-compose.yml up -d
+   ```
+
+   > **Importante al ejecutar desde la raíz:** hay que pasar **ambos**
+   > `--env-file backend/.env` **y** `-f backend/docker-compose.yml`. Docker Compose busca
+   > el `.env` en el directorio actual (la raíz), no junto al `docker-compose.yml`; sin
+   > `--env-file` usaría los valores por defecto en vez de los de tu `.env`.
+   >
+   > Equivalente desde `backend/`: `cd backend && docker compose up -d` (ahí Compose lee
+   > `.env` automáticamente).
+
 2. Crear el tenant y los namespaces de Pulsar que usan los tópicos de este proyecto:
 
 ```shell
@@ -202,38 +255,44 @@ El proyecto usa **Spring Boot 4.1.1**. Esa versión de su plugin de Gradle exige
    docker exec hda-pulsar bin/pulsar-admin namespaces create hda/notificaciones
    ```
 
+   (Estos usan `docker exec` sobre el contenedor `hda-pulsar`, así que funcionan igual
+   desde cualquier directorio.)
+
 3. Compilar los tres servicios. Los tres jars se generan en el mismo directorio
-   (`applications/build/libs/`), así que **no uses `clean` entre servicio y servicio**:
-   borraría los jars ya generados de los otros dos. Compílalos todos de una sola vez:
+   (`backend/applications/build/libs/`), así que **no uses `clean` entre servicio y
+   servicio**: borraría los jars ya generados de los otros dos. Compílalos todos de una
+   sola vez:
 
 ```shell
-./gradlew :applications:bootJarTrabajos :applications:bootJarIntegracion :applications:bootJarNotificaciones
+./backend/gradlew -p backend :applications:bootJarTrabajos :applications:bootJarIntegracion :applications:bootJarNotificaciones
 ```
 
-   (equivalente: `./gradlew :applications:assemble`, que depende de las tres tareas).
+   (equivalente: `./backend/gradlew -p backend :applications:assemble`, que depende de las
+   tres tareas; o `cd backend && ./gradlew :applications:assemble`.)
 
-   Si en algún momento necesitas una compilación totalmente limpia, corre `./gradlew clean`
-   **una sola vez** y luego el comando de arriba — nunca `clean` por servicio.
+   Si en algún momento necesitas una compilación totalmente limpia, corre
+   `./backend/gradlew -p backend clean` **una sola vez** y luego el comando de arriba —
+   nunca `clean` por servicio.
 
 3.1. Correr cada servicio (cada uno en su propia terminal):
     - `trabajos-service` (`com.hda.trabajos.TrabajosServiceApplication`) → puerto `8081`.
 
 ```shell
-java -jar applications/build/libs/trabajos-service.jar
+java -jar backend/applications/build/libs/trabajos-service.jar
 ```
 
 - `integracion-service` (`com.hda.integracion.IntegracionServiceApplication`) →
   puerto `8082`.
 
 ```shell
-java -jar applications/build/libs/integracion-service.jar
+java -jar backend/applications/build/libs/integracion-service.jar
 ```
 
 - `notificaciones-service` (`com.hda.notificaciones.NotificacionesServiceApplication`) →
   puerto `8083`.
 
 ```shell
-java -jar applications/build/libs/notificaciones-service.jar
+java -jar backend/applications/build/libs/notificaciones-service.jar
 ```
 
 4. Probar el flujo completo:

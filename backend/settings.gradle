@@ -34,6 +34,9 @@ project(':integracion-pulsar-event-handler').projectDir = file('infrastructure/e
 include ':integracion-pulsar-event-bus'
 project(':integracion-pulsar-event-bus').projectDir = file('infrastructure/driven-adapters/pulsar-event-bus/integracion-service')
 
+include ':integracion-redis-idempotency'
+project(':integracion-redis-idempotency').projectDir = file('infrastructure/driven-adapters/redis-idempotency/integracion-service')
+
 // ---- notificaciones-service ----
 include ':notificaciones-model'
 project(':notificaciones-model').projectDir = file('domain/model/notificaciones-service')
@@ -49,3 +52,6 @@ project(':notificaciones-pulsar-event-bus').projectDir = file('infrastructure/dr
 
 include ':notificaciones-email-sender'
 project(':notificaciones-email-sender').projectDir = file('infrastructure/driven-adapters/email-sender/notificaciones-service')
+
+include ':notificaciones-redis-idempotency'
+project(':notificaciones-redis-idempotency').projectDir = file('infrastructure/driven-adapters/redis-idempotency/notificaciones-service')

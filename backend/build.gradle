@@ -30,8 +30,6 @@ subprojects {
 
     java {
         toolchain {
-            // Java 25 (LTS mas reciente al momento de esta entrega). Gradle descarga
-            // el JDK automaticamente si no lo tienes instalado localmente.
             languageVersion = JavaLanguageVersion.of(25)
         }
     }
@@ -46,6 +44,7 @@ subprojects {
         implementation 'io.projectreactor:reactor-core'
         testImplementation 'org.springframework.boot:spring-boot-starter-test'
         testImplementation 'io.projectreactor:reactor-test'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     }
 
     tasks.withType(Test).configureEach {

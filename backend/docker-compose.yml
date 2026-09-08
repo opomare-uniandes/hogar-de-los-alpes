@@ -3,11 +3,11 @@ services:
     image: postgres:16-alpine
     container_name: hda-postgres
     environment:
-      POSTGRES_DB: hda_trabajos
-      POSTGRES_USER: hda
-      POSTGRES_PASSWORD: hda
+      POSTGRES_DB: ${POSTGRES_DB:-hda_trabajos}
+      POSTGRES_USER: ${POSTGRES_USER:-hda}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hda}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 
@@ -19,5 +19,15 @@ services:
       - "6650:6650"   # protocolo binario (productores/consumidores)
       - "8080:8080"   # admin REST + schema registry
 
+  redis:
+    image: redis:7-alpine
+    container_name: hda-redis
+    command: redis-server --appendonly yes   # AOF: la deduplicacion sobrevive reinicios
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
 volumes:
   pgdata:
+  redisdata:

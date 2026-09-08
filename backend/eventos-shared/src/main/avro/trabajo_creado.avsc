@@ -5,6 +5,11 @@
   "doc": "Evento de DOMINIO. Lo consumen integracion-service y notificaciones-service (cada uno con su propia suscripcion Shared, independiente entre si). No se publica tal cual hacia afuera (ver TrabajoSiniestroCreado y NotificacionEnviada, que son los eventos de integracion).",
   "fields": [
     {
+      "name": "id",
+      "type": "string",
+      "doc": "Identidad unica de ESTA ocurrencia del evento (UUID). Distinta de trabajoId (identidad del agregado). Util para deduplicacion/idempotencia en consumidores con suscripcion Shared."
+    },
+    {
       "name": "trabajoId",
       "type": "string"
     },

@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record TrabajoCreadoDomainEvent(
+        UUID id,
         UUID trabajoId,
         UUID clienteId,
         String categoriaServicio,
@@ -16,6 +17,11 @@ public record TrabajoCreadoDomainEvent(
         String moneda,
         Instant ocurridoEn
 ) implements DomainEvent {
+
+    @Override
+    public UUID id() {
+        return id;
+    }
 
     @Override
     public Instant ocurridoEn() {

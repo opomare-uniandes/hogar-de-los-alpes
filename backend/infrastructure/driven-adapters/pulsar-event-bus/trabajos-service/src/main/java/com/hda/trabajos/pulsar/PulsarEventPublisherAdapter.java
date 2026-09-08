@@ -44,6 +44,7 @@ public class PulsarEventPublisherAdapter implements TrabajoEventPublisher {
     private Mono<Void> publicar(DomainEvent evento) {
         if (evento instanceof TrabajoCreadoDomainEvent e) {
             TrabajoCreado mensajeAvro = TrabajoCreado.newBuilder()
+                    .setId(e.id().toString())
                     .setTrabajoId(e.trabajoId().toString())
                     .setClienteId(e.clienteId().toString())
                     .setCategoriaServicio(e.categoriaServicio())
@@ -56,9 +57,7 @@ public class PulsarEventPublisherAdapter implements TrabajoEventPublisher {
                     .build();
 
             return Mono.fromFuture(productorTrabajoCreado.sendAsync(mensajeAvro))
-                    .doOnSuccess(event -> {
-                        log.info("[EVENTO: TRABAJO-CREADO -> PUBLICADO {}]", mensajeAvro);
-                    })
+                    .doOnSuccess(event -> log.info("[EVENTO: TRABAJO-CREADO -> PUBLICADO {}]", mensajeAvro))
                     .then();
         }
         return Mono.empty();

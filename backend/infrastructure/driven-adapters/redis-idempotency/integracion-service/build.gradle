@@ -1,0 +1,6 @@
+dependencies {
+    implementation project(':integracion-model')
+    implementation 'org.springframework:spring-context' // @Component, @Value
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
+    implementation 'org.slf4j:slf4j-api'
+}

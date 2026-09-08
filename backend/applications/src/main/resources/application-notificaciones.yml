@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: notificaciones-service
+  data:
+    redis:
+      host: localhost
+      port: 6379
 
 hda:
   pulsar:
@@ -11,6 +15,8 @@ hda:
     topic-trabajo-creado: persistent://hda/trabajos/trabajo-creado
     topic-notificacion-enviada: persistent://hda/notificaciones/notificacion-enviada
     subscription: notificaciones-service-sub
+  idempotencia:
+    ttl: PT24H
 
 logging:
   level:

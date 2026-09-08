@@ -3,6 +3,7 @@ package com.hda.integracion.model.trabajocreado;
 import java.time.Instant;
 
 public record TrabajoCreadoEvento(
+        String id,
         String trabajoId,
         String partnerId,
         String categoriaServicio,

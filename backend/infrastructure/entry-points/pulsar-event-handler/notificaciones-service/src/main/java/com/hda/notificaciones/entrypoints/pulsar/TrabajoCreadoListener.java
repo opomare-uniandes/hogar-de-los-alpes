@@ -1,6 +1,7 @@
 package com.hda.notificaciones.entrypoints.pulsar;
 
 import com.hda.eventos.dominio.TrabajoCreado;
+import com.hda.notificaciones.model.idempotencia.gateways.EventDeduplicationStore;
 import com.hda.notificaciones.model.trabajocreado.TrabajoCreadoEvento;
 import com.hda.notificaciones.usecase.enviarnotificacion.EnviarNotificacionUseCase;
 import jakarta.annotation.PostConstruct;
@@ -15,12 +16,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
 
 @Component
 public class TrabajoCreadoListener {
 
     private final PulsarClient pulsarClient;
     private final EnviarNotificacionUseCase enviarNotificacionUseCase;
+    private final EventDeduplicationStore deduplicationStore;
     private final String topicoEntrada;
     private final String suscripcion;
     private static final Logger log = LoggerFactory.getLogger(TrabajoCreadoListener.class);
@@ -30,10 +33,12 @@ public class TrabajoCreadoListener {
     public TrabajoCreadoListener(
             PulsarClient pulsarClient,
             EnviarNotificacionUseCase enviarNotificacionUseCase,
+            EventDeduplicationStore deduplicationStore,
             @Value("${hda.pulsar.topic-trabajo-creado}") String topicoEntrada,
             @Value("${hda.pulsar.subscription}") String suscripcion) {
         this.pulsarClient = pulsarClient;
         this.enviarNotificacionUseCase = enviarNotificacionUseCase;
+        this.deduplicationStore = deduplicationStore;
         this.topicoEntrada = topicoEntrada;
         this.suscripcion = suscripcion;
     }
@@ -53,6 +58,7 @@ public class TrabajoCreadoListener {
         TrabajoCreado evento = mensaje.getValue();
 
         TrabajoCreadoEvento eventoDominio = new TrabajoCreadoEvento(
+                evento.getId(),
                 evento.getTrabajoId(),
                 evento.getClienteId(),
                 evento.getCategoriaServicio(),
@@ -63,7 +69,14 @@ public class TrabajoCreadoListener {
 
         log.info("[EVENTO: TRABAJO-CREADO -> RECIBIDO: {}]", eventoDominio);
 
-        enviarNotificacionUseCase.ejecutar(eventoDominio)
+        deduplicationStore.registrarSiNoVisto(eventoDominio.id())
+                .flatMap(primeraVez -> {
+                    if (Boolean.FALSE.equals(primeraVez)) {
+                        // duplicado: se hizo ack para no reprocesar; no se ejecuta el caso de uso.
+                        return Mono.<Void>empty();
+                    }
+                    return enviarNotificacionUseCase.ejecutar(eventoDominio);
+                })
                 .doOnSuccess(v -> c.acknowledgeAsync(mensaje))
                 .doOnError(err -> c.negativeAcknowledge(mensaje))
                 .subscribe();

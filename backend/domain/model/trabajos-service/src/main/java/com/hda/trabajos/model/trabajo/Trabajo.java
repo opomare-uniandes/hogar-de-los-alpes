@@ -54,7 +54,7 @@ public class Trabajo extends AggregateRoot<UUID> {
                 partnerId, moneda, EstadoTrabajo.CREADO, ahora);
 
         trabajo.registrarEvento(new TrabajoCreadoDomainEvent(
-                id, clienteId, categoriaServicio.nombre(), urgencia, ciudad, origen,
+                UUID.randomUUID(), id, clienteId, categoriaServicio.nombre(), urgencia, ciudad, origen,
                 partnerId, moneda.codigoIso4217(), ahora));
 
         return trabajo;
