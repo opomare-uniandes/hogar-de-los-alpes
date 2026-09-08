@@ -1,0 +1,24 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: integracion-service
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+hda:
+  pulsar:
+    service-url: pulsar://localhost:6650
+    topic-trabajo-creado: persistent://hda/trabajos/trabajo-creado
+    topic-trabajo-siniestro-creado: persistent://hda/integracion/trabajo-siniestro-creado
+    subscription: integracion-service-sub
+  idempotencia:
+    ttl: PT24H
+
+logging:
+  level:
+    org.apache.pulsar.client.impl.ProducerStatsRecorderImpl: WARN
+    org.apache.pulsar.client.impl.ConsumerStatsRecorderImpl: WARN

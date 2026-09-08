@@ -1,0 +1,12 @@
+.gradle/
+build/
+build-cache/
+*.class
+.idea/
+*.iml
+out/
+.claude
+
+# Variables de entorno con credenciales reales - NO versionar.
+# (la plantilla .env.example SI se versiona)
+.env

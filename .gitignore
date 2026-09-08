@@ -2,7 +2,8 @@
 build/
 build-cache/
 *.class
-.idea/
+../.idea/
 *.iml
 out/
 .claude
+.idea/

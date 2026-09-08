@@ -1,0 +1,23 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: trabajos-service
+  r2dbc:
+    url: r2dbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:hda_trabajos}
+    username: ${POSTGRES_USER:hda}
+    password: ${POSTGRES_PASSWORD:hda}
+  sql:
+    init:
+      mode: always   # ejecuta schema.sql al arrancar (crea las tablas si no existen)
+
+hda:
+  pulsar:
+    service-url: pulsar://localhost:6650
+    admin-url: http://localhost:8080
+    topic-trabajo-creado: persistent://hda/trabajos/trabajo-creado
+
+logging:
+  level:
+    org.apache.pulsar.client.impl.ProducerStatsRecorderImpl: WARN
