@@ -17,7 +17,8 @@ dependencies {
 
     implementation project(':notificaciones-pulsar-event-handler')
     implementation project(':notificaciones-pulsar-event-bus')
-    implementation project(':notificaciones-email-sender')
+    implementation project(':notificaciones-canal-notificacion')
+    implementation project(':notificaciones-usuarios-client')
     implementation project(':notificaciones-redis-idempotency')
     implementation project(':notificaciones-model')
     implementation project(':notificaciones-usecase')

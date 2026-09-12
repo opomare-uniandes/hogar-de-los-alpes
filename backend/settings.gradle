@@ -50,8 +50,11 @@ project(':notificaciones-pulsar-event-handler').projectDir = file('infrastructur
 include ':notificaciones-pulsar-event-bus'
 project(':notificaciones-pulsar-event-bus').projectDir = file('infrastructure/driven-adapters/pulsar-event-bus/notificaciones-service')
 
-include ':notificaciones-email-sender'
-project(':notificaciones-email-sender').projectDir = file('infrastructure/driven-adapters/email-sender/notificaciones-service')
+include ':notificaciones-canal-notificacion'
+project(':notificaciones-canal-notificacion').projectDir = file('infrastructure/driven-adapters/canal-notificacion/notificaciones-service')
+
+include ':notificaciones-usuarios-client'
+project(':notificaciones-usuarios-client').projectDir = file('infrastructure/driven-adapters/http-client/notificaciones-service')
 
 include ':notificaciones-redis-idempotency'
 project(':notificaciones-redis-idempotency').projectDir = file('infrastructure/driven-adapters/redis-idempotency/notificaciones-service')
