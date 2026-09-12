@@ -1,8 +1,5 @@
 dependencies {
     implementation project(':notificaciones-model')
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
-    // spring-boot-starter-webflux (Boot 4.1) solo trae el lado servidor (spring-boot-webflux
-    // autoconfigure: WebFluxAutoConfiguration, etc). El bean WebClient.Builder que necesita
-    // este adaptador vive en un modulo de autoconfiguracion aparte.
     implementation 'org.springframework.boot:spring-boot-webclient'
 }

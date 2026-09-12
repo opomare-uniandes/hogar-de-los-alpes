@@ -7,10 +7,8 @@ spring:
   r2dbc:
     url: r2dbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_USUARIOS_DB:hda_usuarios}
     username: ${POSTGRES_USER:hda}
-    password: ${POSTGRES_PASSWORD:hda}
+    password: ${POSTGRES_PASSWORD:changeit}
   sql:
     init:
       mode: always   # ejecuta schema.sql al arrancar (crea la tabla y siembra los 3 usuarios si no existen)
-      # Explicito (no el default classpath*:schema.sql) para no ejecutar el schema.sql
-      # de trabajos-service, que tambien viaja en el classpath combinado de applications/.
       schema-locations: classpath:usuarios/schema.sql

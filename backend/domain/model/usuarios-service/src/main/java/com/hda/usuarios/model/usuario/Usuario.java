@@ -4,15 +4,6 @@ import com.hda.usuarios.model.seedwork.AggregateRoot;
 
 import java.util.UUID;
 
-/**
- * Agregado raiz Usuario (ver Entrega 2 - Vista de Informacion: una de las 9 agregaciones,
- * con invariante de identidad unica de contacto). Esta entrega solo lo usa como fuente
- * de consulta (contacto + preferencias de canal) para notificaciones-service: no publica
- * eventos de dominio todavia ni tiene comandos de creacion/edicion via API (los 3 usuarios
- * de esta entrega vienen semillados). Se modela igual que Trabajo, con el mismo rigor
- * tactico, para no reestructurar nada si en una entrega futura se agrega, por ejemplo,
- * un evento PreferenciaNotificacionActualizada.
- */
 public class Usuario extends AggregateRoot<UUID> {
 
     private final String nombre;

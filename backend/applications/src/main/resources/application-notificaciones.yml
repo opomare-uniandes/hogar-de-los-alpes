@@ -18,8 +18,6 @@ hda:
   idempotencia:
     ttl: PT24H
   usuarios-service:
-    # Unico punto sincrono del sistema: consulta de contacto/preferencias (ver
-    # UsuarioHttpClientAdapter). Nunca un comando.
     base-url: http://localhost:8084
 
 logging:

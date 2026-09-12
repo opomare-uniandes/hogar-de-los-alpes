@@ -7,9 +7,6 @@ import org.springframework.boot.data.redis.autoconfigure.DataRedisReactiveAutoCo
 
 import java.util.Map;
 
-// Igual que TrabajosServiceApplication: usuarios-service SI usa R2DBC (no se excluye),
-// pero NO usa Redis (se excluye su autoconfig, que de otra forma se activaria porque
-// redis-idempotency de otros servicios comparte el classpath de applications/).
 @SpringBootApplication(exclude = {DataRedisAutoConfiguration.class, DataRedisReactiveAutoConfiguration.class})
 public class UsuariosServiceApplication {
 

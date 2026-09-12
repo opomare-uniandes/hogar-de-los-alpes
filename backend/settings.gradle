@@ -5,7 +5,6 @@ include 'eventos-shared'
 include ':applications'
 project(':applications').projectDir = file('applications')
 
-// ---- trabajos-service ----
 include ':trabajos-model'
 project(':trabajos-model').projectDir = file('domain/model/trabajos-service')
 
@@ -21,7 +20,6 @@ project(':trabajos-r2dbc-postgresql').projectDir = file('infrastructure/driven-a
 include ':trabajos-pulsar-event-bus'
 project(':trabajos-pulsar-event-bus').projectDir = file('infrastructure/driven-adapters/pulsar-event-bus/trabajos-service')
 
-// ---- integracion-service ----
 include ':integracion-model'
 project(':integracion-model').projectDir = file('domain/model/integracion-service')
 
@@ -37,7 +35,6 @@ project(':integracion-pulsar-event-bus').projectDir = file('infrastructure/drive
 include ':integracion-redis-idempotency'
 project(':integracion-redis-idempotency').projectDir = file('infrastructure/driven-adapters/redis-idempotency/integracion-service')
 
-// ---- notificaciones-service ----
 include ':notificaciones-model'
 project(':notificaciones-model').projectDir = file('domain/model/notificaciones-service')
 
@@ -59,7 +56,6 @@ project(':notificaciones-usuarios-client').projectDir = file('infrastructure/dri
 include ':notificaciones-redis-idempotency'
 project(':notificaciones-redis-idempotency').projectDir = file('infrastructure/driven-adapters/redis-idempotency/notificaciones-service')
 
-// ---- usuarios-service ----
 include ':usuarios-model'
 project(':usuarios-model').projectDir = file('domain/model/usuarios-service')
 

@@ -23,7 +23,8 @@ CREATE TABLE IF NOT EXISTS usuario (
 -- (usarlos como clienteId al hacer POST /trabajos durante las pruebas end-to-end).
 INSERT INTO usuario (id, nombre, correo, celular, notificar_por_email, notificar_por_whatsapp)
 VALUES
-    ('11111111-1111-1111-1111-111111111111', 'Usuario A (solo email)',    'usuarioA@hda.test', '+57 300 0000001', TRUE,  FALSE),
-    ('22222222-2222-2222-2222-222222222222', 'Usuario B (solo WhatsApp)', 'usuarioB@hda.test', '+57 300 0000002', FALSE, TRUE),
-    ('33333333-3333-3333-3333-333333333333', 'Usuario C (ambos canales)', 'usuarioC@hda.test', '+57 300 0000003', TRUE,  TRUE)
+    ('11111111-1111-1111-1111-111111111111', 'Luis (solo email)',    'luis@hda.test', '+573000000001', TRUE,  FALSE),
+    ('11111111-1111-1111-1111-111111111112', 'Víctor (solo WhatsApp)', 'victor@hda.test', '+573000000002', FALSE, TRUE),
+    ('11111111-1111-1111-1111-111111111113', 'Osmond (ambos canales)', 'osmond@hda.test', '+573000000003', TRUE,  TRUE),
+    ('11111111-1111-1111-1111-111111111114', 'Fernando (solo email)', 'fernando@hda.test', '+573000000003', TRUE,  FALSE)
 ON CONFLICT (id) DO NOTHING;

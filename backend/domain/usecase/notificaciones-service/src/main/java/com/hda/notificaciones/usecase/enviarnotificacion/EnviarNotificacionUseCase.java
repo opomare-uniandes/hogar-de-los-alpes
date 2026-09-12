@@ -18,11 +18,6 @@ public class EnviarNotificacionUseCase {
     private final CanalNotificacion whatsappChannel;
     private final NotificacionEnviadaPublisher notificacionEnviadaPublisher;
 
-    // emailChannel/whatsappChannel: mismo puerto (CanalNotificacion), dos adaptadores.
-    // Spring los distingue por nombre de parametro contra el nombre de bean (ver
-    // @Component("emailChannel")/@Component("whatsappChannel") en los adaptadores) -
-    // funciona gracias a "-parameters" en el compilador (ver build.gradle raiz), sin
-    // que este caso de uso necesite ninguna anotacion de framework.
     public EnviarNotificacionUseCase(ConsultaUsuarioGateway consultaUsuarioGateway,
                                       CanalNotificacion emailChannel,
                                       CanalNotificacion whatsappChannel,

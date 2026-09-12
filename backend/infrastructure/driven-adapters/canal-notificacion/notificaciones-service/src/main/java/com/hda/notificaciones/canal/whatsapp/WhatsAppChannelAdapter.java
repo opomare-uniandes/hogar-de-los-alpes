@@ -11,9 +11,6 @@ import reactor.core.publisher.Mono;
 
 import java.time.Instant;
 
-// Simulado, igual que EmailChannelAdapter: solo loguea, sin ninguna API real de
-// WhatsApp Business. Nombre de bean explicito ("whatsappChannel"), mismo motivo que
-// en EmailChannelAdapter.
 @Component("whatsappChannel")
 public class WhatsAppChannelAdapter implements CanalNotificacion {
 

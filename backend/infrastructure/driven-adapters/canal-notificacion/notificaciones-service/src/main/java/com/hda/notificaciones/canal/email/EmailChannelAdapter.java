@@ -11,9 +11,6 @@ import reactor.core.publisher.Mono;
 
 import java.time.Instant;
 
-// Nombre de bean explicito ("emailChannel"): EnviarNotificacionUseCase distingue este
-// canal del de WhatsApp por nombre de parametro/bean, no por tipo (los dos implementan
-// CanalNotificacion). Ver el comentario en ese caso de uso.
 @Component("emailChannel")
 public class EmailChannelAdapter implements CanalNotificacion {
 

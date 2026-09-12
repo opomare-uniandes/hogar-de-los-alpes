@@ -1,4 +1,4 @@
-# Hogar de los Alpes — Backend de microservicios (Entrega 4)
+# Hogar de los Alpes — Backend de microservicios
 
 Proyecto multi-módulo Gradle (Java 25) que implementa una porción mínima de 4 agregados
 (`Trabajo`, `Usuario`, y los traductores de `integracion-service`/`notificaciones-service`),
@@ -9,7 +9,7 @@ siguiendo DDD táctico y arquitectura hexagonal, con **Spring Boot WebFlux** (re
 ## Portal web
 
 El repositorio incluye en `frontend` una aplicación React + TypeScript que permite
-crear trabajos y consultarlos por su identificador. Durante el desarrollo, Vite redirige
+crear trabajos y consultarlos por su identificador. Durante el desarrollo, redirige
 `/api` a `trabajos-service` en el puerto `8081`.
 
 ```shell
@@ -214,22 +214,22 @@ consumen cada uno por su lado (fan-out, ver diagrama arriba) y publican
 `trabajo-siniestro-creado`/`notificacion-enviada` respectivamente. Son cuatro
 procesos/servicios Spring Boot independientes.
 
-## Mapeo con las decisiones de diseño (Entregas 2, 3 y 4)
+## Mapeo con las decisiones de diseño
 
 | Decisión de diseño | Dónde vive en el código |
 | --- | --- |
 | Seedwork (Entity, ValueObject, AggregateRoot, DomainEvent) — POJOs sin dependencia de framework | `domain` (duplicado por servicio a propósito - `trabajos-service` y `usuarios-service` lo tienen cada uno el suyo, no comparten módulo) |
-| Agregado raíz `Trabajo` con Factory (`Trabajo.crear(...)`) | `domain` |
-| Agregado raíz `Usuario` (Entrega 4) con Factory (`Usuario.crear(...)`), 2 flags independientes de canal (`notificarPorEmail`/`notificarPorWhatsapp`) en vez de un enum - agregar un canal nuevo es agregar un flag, no tocar los existentes | `domain/model/usuarios-service` |
+| Agregado raíz `Trabajo` con Factory (`Trabajo.crear(...)`) | `domain/model/trabajos-service` |
+| Agregado raíz `Usuario` con Factory (`Usuario.crear(...)`) | `domain/model/usuarios-service` |
 | Objeto de valor `Moneda` pensado para el escenario de modificabilidad 1.3 (nuevo país sin tocar el resto del agregado) | `domain` |
 | Arquitectura hexagonal: puertos (`TrabajoRepository`, `TrabajoEventPublisher`) en el dominio vs. adaptadores concretos | `domain` (puertos) + `infrastructure` (adaptadores) |
 | CQS: comando `CrearTrabajoCommand`/`CrearTrabajoUseCase` vs. consulta `ConsultarTrabajoUseCase` | `domain` y `.../consultartrabajo/` |
 | Evento de dominio `TrabajoCreado` (Avro) vs. evento de integración `TrabajoSiniestroCreado` (Avro, v1) — separación exigida por el escenario 3.3 | `eventos-shared` |
 | Escalabilidad (escenario 2.3): suscripción `Shared` de Pulsar en los consumidores de trabajo-creado, para poder correr varias instancias en paralelo — demo en vivo: sección "Levantarlo todo con Docker Compose" | `infrastructure` |
-| Persistencia real (no sqlite/h2), mínima, con topología de datos descentralizada (una base Postgres por servicio, no una tabla compartida) | `backend/infrastructure/driven-adapters/r2dbc-postgresql/{trabajos,usuarios}-service/src/main/resources/schema.sql`, `backend/docker/postgres-init/` |
+| Persistencia real, mínima, con topología de datos descentralizada (una base Postgres por servicio, no una tabla compartida) | `backend/infrastructure/driven-adapters/r2dbc-postgresql/{trabajos,usuarios}-service/src/main/resources/schema.sql`, `backend/docker/postgres-init/` |
 | Modificabilidad (escenario 1.1): agregar un consumidor nuevo (`notificaciones-service`) sin tocar `trabajos-service` ni `integracion-service` - solo una suscripción `Shared` más sobre `trabajo-creado` | `backend/infrastructure/entry-points/pulsar-event-handler/notificaciones-service` |
-| Modificabilidad (Entrega 4): puerto `EmailSender` generalizado a `CanalNotificacion`; se agrega `WhatsAppChannelAdapter` sin tocar `trabajos-service`, `integracion-service` ni `usuarios-service` | `backend/domain/model/notificaciones-service`, `backend/infrastructure/driven-adapters/canal-notificacion/notificaciones-service` |
-| Interoperabilidad (Entrega 4): agregar un cuarto servicio (`usuarios-service`) no obliga a escalar ni a cambiar los otros tres; la única comunicación nueva es una consulta HTTP síncrona explícita, no un comando, y queda documentada como la única excepción a "todo por eventos" | `backend/infrastructure/driven-adapters/http-client/notificaciones-service` |
+| Modificabilidad: puerto `EmailSender` generalizado a `CanalNotificacion`; se agrega `WhatsAppChannelAdapter` sin tocar `trabajos-service`, `integracion-service` ni `usuarios-service` | `backend/domain/model/notificaciones-service`, `backend/infrastructure/driven-adapters/canal-notificacion/notificaciones-service` |
+| Interoperabilidad: agregar un cuarto servicio (`usuarios-service`) la única comunicación nueva es una consulta HTTP síncrona explícita, no un comando. | `backend/infrastructure/driven-adapters/http-client/notificaciones-service` |
 | Puerto separado para la acción real ("enviar" la notificación) vs. el evento que solo registra que ya se envió - mismo principio hexagonal que `TrabajoRepository`/`TrabajoEventPublisher` en trabajos-service | `domain` |
 
 ## Versión de Spring Boot y de Gradle
@@ -263,20 +263,15 @@ El proyecto usa **Spring Boot 4.1.1**. Esa versión de su plugin de Gradle exige
    | Variable | Para qué | Valor por defecto |
    | --- | --- | --- |
    | `POSTGRES_DB` | Base de datos de `trabajos-service` | `hda_trabajos` |
-   | `POSTGRES_USUARIOS_DB` | Base de datos de `usuarios-service` (separada, mismo Postgres) | `hda_usuarios` |
+   | `POSTGRES_USUARIOS_DB` | Base de datos de `usuarios-service` | `hda_usuarios` |
    | `POSTGRES_USER` | Usuario de Postgres | `hda` |
-   | `POSTGRES_PASSWORD` | Contraseña de Postgres | `hda` (¡cámbiala!) |
+   | `POSTGRES_PASSWORD` | Contraseña de Postgres | `changeit` (¡cámbiala!) |
    | `POSTGRES_HOST` | Host al que se conectan `trabajos-service`/`usuarios-service` | `localhost` |
    | `POSTGRES_PORT` | Puerto de Postgres | `5432` |
 
    Si no defines nada, aplican los valores por defecto (pensados solo para desarrollo
    local). Si arrancas un servicio **fuera** de Docker Compose (con `java -jar`), exporta
-   las variables en esa terminal para que las lea la app, por ejemplo:
-
-```shell
-   set -a; source backend/.env; set +a
-   java -jar backend/applications/build/libs/trabajos-service.jar
-   ```
+   las variables en esa terminal para que las lea la app.
 
    > **`hda_usuarios` solo se crea en un volumen nuevo de Postgres.** El script
    > `backend/docker/postgres-init/01-create-usuarios-db.sh` corre automáticamente la
@@ -371,8 +366,9 @@ java -jar backend/applications/build/libs/notificaciones-service.jar
    | `clienteId` | Canal |
    | --- | --- |
    | `11111111-1111-1111-1111-111111111111` | Solo email |
-   | `22222222-2222-2222-2222-222222222222` | Solo WhatsApp |
-   | `33333333-3333-3333-3333-333333333333` | Ambos |
+   | `11111111-1111-1111-1111-111111111112` | Solo WhatsApp |
+   | `11111111-1111-1111-1111-111111111113` | Ambos |
+   | `11111111-1111-1111-1111-111111111114` | Solo email |
 
    Se pueden consultar directamente, sin pasar por `trabajos-service`:
 
@@ -398,6 +394,7 @@ por cada canal. Con los 3 `clienteId` de la tabla anterior, el log de
 - Usuario A → solo `[EMAIL SIMULADO] Para: usuarioA@hda.test ...`
 - Usuario B → solo `[WHATSAPP SIMULADO] Para: +57 300 0000002 ...`
 - Usuario C → ambos logs (dos eventos `NotificacionEnviada`, uno por canal)
+- Usuario D → solo `[EMAIL SIMULADO] Para: usuarioD@hda.test ...`
 
 La respuesta trae el `id` generado (UUID), por ejemplo:
 

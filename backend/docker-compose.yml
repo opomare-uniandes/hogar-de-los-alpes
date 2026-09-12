@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-hda_trabajos}
       POSTGRES_USER: ${POSTGRES_USER:-hda}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hda}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:changeit}
       POSTGRES_USUARIOS_DB: ${POSTGRES_USUARIOS_DB:-hda_usuarios}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"

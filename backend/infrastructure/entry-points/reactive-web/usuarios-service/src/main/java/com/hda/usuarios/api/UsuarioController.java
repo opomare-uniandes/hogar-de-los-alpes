@@ -22,7 +22,6 @@ public class UsuarioController {
         this.consultarUsuarioUseCase = consultarUsuarioUseCase;
     }
 
-    // Consulta: unico endpoint que necesita notificaciones-service.
     @GetMapping("/{clienteId}/contacto")
     public Mono<ResponseEntity<ContactoUsuarioDTO>> obtenerContacto(@PathVariable UUID clienteId) {
         return consultarUsuarioUseCase.ejecutar(clienteId)
