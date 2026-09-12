@@ -17,6 +17,8 @@ hda:
     subscription: notificaciones-service-sub
   idempotencia:
     ttl: PT24H
+  usuarios-service:
+    base-url: http://localhost:8084
 
 logging:
   level:

@@ -1,0 +1,14 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: usuarios-service
+  r2dbc:
+    url: r2dbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_USUARIOS_DB:hda_usuarios}
+    username: ${POSTGRES_USER:hda}
+    password: ${POSTGRES_PASSWORD:changeit}
+  sql:
+    init:
+      mode: always   # ejecuta schema.sql al arrancar (crea la tabla y siembra los 3 usuarios si no existen)
+      schema-locations: classpath:usuarios/schema.sql
