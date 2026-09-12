@@ -1,0 +1,5 @@
+dependencies {
+    implementation project(':usuarios-usecase')
+    implementation project(':usuarios-model')
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+}

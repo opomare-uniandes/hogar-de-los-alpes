@@ -22,6 +22,11 @@ dependencies {
     implementation project(':notificaciones-model')
     implementation project(':notificaciones-usecase')
 
+    implementation project(':usuarios-reactive-web')
+    implementation project(':usuarios-r2dbc-postgresql')
+    implementation project(':usuarios-model')
+    implementation project(':usuarios-usecase')
+
     implementation 'org.springframework.boot:spring-boot-starter'
     implementation 'org.apache.pulsar:pulsar-client-api'
     implementation 'org.springframework.boot:spring-boot-r2dbc'
@@ -68,4 +73,13 @@ tasks.register('bootJarNotificaciones', BootJar) {
     targetJavaVersion.set(bootJarJavaVersion)
 }
 
-assemble.dependsOn bootJarTrabajos, bootJarIntegracion, bootJarNotificaciones
+tasks.register('bootJarUsuarios', BootJar) {
+    group = 'build'
+    description = 'Empaqueta usuarios-service.jar (UsuariosServiceApplication).'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.hda.usuarios.UsuariosServiceApplication'
+    archiveFileName = 'usuarios-service.jar'
+    targetJavaVersion.set(bootJarJavaVersion)
+}
+
+assemble.dependsOn bootJarTrabajos, bootJarIntegracion, bootJarNotificaciones, bootJarUsuarios

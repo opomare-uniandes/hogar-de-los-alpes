@@ -55,3 +55,16 @@ project(':notificaciones-email-sender').projectDir = file('infrastructure/driven
 
 include ':notificaciones-redis-idempotency'
 project(':notificaciones-redis-idempotency').projectDir = file('infrastructure/driven-adapters/redis-idempotency/notificaciones-service')
+
+// ---- usuarios-service ----
+include ':usuarios-model'
+project(':usuarios-model').projectDir = file('domain/model/usuarios-service')
+
+include ':usuarios-usecase'
+project(':usuarios-usecase').projectDir = file('domain/usecase/usuarios-service')
+
+include ':usuarios-reactive-web'
+project(':usuarios-reactive-web').projectDir = file('infrastructure/entry-points/reactive-web/usuarios-service')
+
+include ':usuarios-r2dbc-postgresql'
+project(':usuarios-r2dbc-postgresql').projectDir = file('infrastructure/driven-adapters/r2dbc-postgresql/usuarios-service')
