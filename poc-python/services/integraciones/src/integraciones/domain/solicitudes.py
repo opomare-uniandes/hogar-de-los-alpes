@@ -17,6 +17,8 @@ class SolicitudIntegracion:
     partner_id: str
     external_request_id: str
     correlation_id: UUID
+    source_event_id: UUID
+    source_contract_version: str
     estado: EstadoSolicitud
     comando: CrearTrabajoCommand
     recibida_en_ms: int
@@ -36,8 +38,9 @@ class SolicitudIntegracion:
             partner_id=comando.partner_id,
             external_request_id=comando.external_request_id,
             correlation_id=comando.correlation_id,
+            source_event_id=comando.source_event_id,
+            source_contract_version=comando.source_contract_version,
             estado=EstadoSolicitud.RECIBIDA,
             comando=comando,
             recibida_en_ms=recibida_en_ms,
         )
-

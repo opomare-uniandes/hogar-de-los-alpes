@@ -2,7 +2,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 
-from integraciones.application.ports import UnidadDeTrabajo
+from integraciones.application.ports import SolicitudDuplicadaConcurrente, UnidadDeTrabajo
 from integraciones.domain.commands import CrearTrabajoCommand
 from integraciones.domain.outbox import MensajeOutbox
 from integraciones.domain.solicitudes import SolicitudIntegracion
@@ -34,31 +34,37 @@ class RecibirSolicitud:
         self._clock_ms = clock_ms
 
     def ejecutar(self, comando: CrearTrabajoCommand) -> ResultadoRecepcion:
-        with self._uow_factory() as uow:
-            existente = uow.solicitudes.buscar_por_clave(
-                comando.partner_id,
-                comando.external_request_id,
-            )
-            if existente is not None:
-                return ResultadoRecepcion(
-                    estado=EstadoRecepcion.DUPLICADA,
-                    solicitud_id=str(existente.id),
+        try:
+            with self._uow_factory() as uow:
+                existente = uow.solicitudes.buscar_por_clave(
+                    comando.partner_id,
+                    comando.external_request_id,
+                )
+                if existente is not None:
+                    return ResultadoRecepcion(
+                        estado=EstadoRecepcion.DUPLICADA,
+                        solicitud_id=str(existente.id),
+                    )
+
+                solicitud = SolicitudIntegracion.registrar(
+                    comando,
+                    recibida_en_ms=self._clock_ms(),
+                )
+                mensaje = MensajeOutbox.para_crear_trabajo(
+                    solicitud,
+                    topic=TOPIC_CREAR_TRABAJO_V1,
                 )
 
-            solicitud = SolicitudIntegracion.registrar(
-                comando,
-                recibida_en_ms=self._clock_ms(),
-            )
-            mensaje = MensajeOutbox.para_crear_trabajo(
-                solicitud,
-                topic=TOPIC_CREAR_TRABAJO_V1,
-            )
+                uow.solicitudes.agregar(solicitud)
+                uow.outbox.agregar(mensaje)
+                uow.commit()
 
-            uow.solicitudes.agregar(solicitud)
-            uow.outbox.agregar(mensaje)
-            uow.commit()
-
+                return ResultadoRecepcion(
+                    estado=EstadoRecepcion.PROCESADA,
+                    solicitud_id=str(solicitud.id),
+                )
+        except SolicitudDuplicadaConcurrente:
             return ResultadoRecepcion(
-                estado=EstadoRecepcion.PROCESADA,
-                solicitud_id=str(solicitud.id),
+                estado=EstadoRecepcion.DUPLICADA,
+                solicitud_id=str(comando.command_id),
             )

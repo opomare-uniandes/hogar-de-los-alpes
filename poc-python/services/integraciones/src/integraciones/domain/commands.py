@@ -19,6 +19,8 @@ class CrearTrabajoCommand:
 
     command_id: UUID
     correlation_id: UUID
+    source_event_id: UUID
+    source_contract_version: str
     partner_id: str
     external_request_id: str
     cliente_id: str
@@ -34,6 +36,8 @@ class CrearTrabajoCommand:
         cls,
         *,
         correlation_id: UUID,
+        source_event_id: UUID,
+        source_contract_version: str,
         partner_id: str,
         external_request_id: str,
         cliente_id: str,
@@ -51,6 +55,8 @@ class CrearTrabajoCommand:
         return cls(
             command_id=command_id,
             correlation_id=correlation_id,
+            source_event_id=source_event_id,
+            source_contract_version=source_contract_version.strip().lower(),
             partner_id=partner_id.strip(),
             external_request_id=external_request_id.strip(),
             cliente_id=cliente_id.strip(),
@@ -77,3 +83,13 @@ class CrearTrabajoCommand:
             self.fecha_solicitud_ms,
         )
 
+    def campos_persistencia(self) -> dict[str, object]:
+        return {
+            "clienteId": self.cliente_id,
+            "categoriaServicio": self.categoria_servicio,
+            "urgencia": self.urgencia.value,
+            "ciudad": self.ciudad,
+            "pais": self.pais,
+            "moneda": self.moneda,
+            "fechaSolicitud": self.fecha_solicitud_ms,
+        }

@@ -1,6 +1,7 @@
 from types import TracebackType
 
 from integraciones.application import EstadoRecepcion, RecibirSolicitud
+from integraciones.application.ports import SolicitudDuplicadaConcurrente
 from integraciones.application.recibir_solicitud import TOPIC_CREAR_TRABAJO_V1
 from integraciones.domain import CrearTrabajoCommand, MensajeOutbox, SolicitudIntegracion
 from integraciones.infrastructure.contracts import SolicitudTrabajoPartnerV1Create
@@ -68,7 +69,8 @@ def test_persiste_agregado_y_outbox_en_una_unidad_de_trabajo(
     assert len(uow.solicitudes.items) == 1
     assert len(uow.outbox.items) == 1
     assert uow.outbox.items[0].topic == TOPIC_CREAR_TRABAJO_V1
-    assert uow.outbox.items[0].payload["categoriaServicio"] == "PLOMERIA"
+    assert uow.outbox.items[0].payload["data"]["categoriaServicio"] == "PLOMERIA"  # type: ignore[index]
+    assert uow.outbox.items[0].payload["type"] == "com.hda.trabajos.crear.v1"
 
 
 def test_duplicado_no_crea_otro_agregado_ni_otro_mensaje(
@@ -87,3 +89,22 @@ def test_duplicado_no_crea_otro_agregado_ni_otro_mensaje(
     assert uow.commits == 1
     assert len(uow.solicitudes.items) == 1
     assert len(uow.outbox.items) == 1
+
+
+def test_colision_concurrente_se_reporta_como_duplicado(
+    evento_v1: dict[str, object],
+) -> None:
+    class UowConColision(UowMemoria):
+        def commit(self) -> None:
+            raise SolicitudDuplicadaConcurrente
+
+    uow = UowConColision()
+    comando = _comando(evento_v1)
+
+    resultado = RecibirSolicitud(
+        lambda: uow,
+        lambda: 1_736_899_201_000,
+    ).ejecutar(comando)
+
+    assert resultado.estado is EstadoRecepcion.DUPLICADA
+    assert resultado.solicitud_id == str(comando.command_id)

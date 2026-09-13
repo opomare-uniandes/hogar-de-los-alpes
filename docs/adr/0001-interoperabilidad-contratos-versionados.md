@@ -61,6 +61,8 @@ El mensaje de entrada se confirmara (`ack`) despues de confirmar la transaccion 
 
 Se adopta una topologia descentralizada. `integraciones-service` sera propietario de `hda_integraciones`; no consultara ni escribira las tablas de Trabajos, Usuarios o Notificaciones.
 
+La base contiene `solicitudes_integracion`, con una clave unica de negocio sobre `(partner_id, external_request_id)`, y `outbox_messages`, enlazada al agregado mediante `aggregate_id`. La primera conserva `source_event_id`, `source_contract_version`, `correlation_id` y el payload canonico; la segunda conserva el sobre Avro que debe publicarse y su estado operativo.
+
 ## Criterios de aceptacion del experimento
 
 - El 100 % de los mensajes validos de la muestra V1 y V2 es procesado.

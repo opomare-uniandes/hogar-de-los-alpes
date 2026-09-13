@@ -5,6 +5,10 @@ from integraciones.domain.outbox import MensajeOutbox
 from integraciones.domain.solicitudes import SolicitudIntegracion
 
 
+class SolicitudDuplicadaConcurrente(Exception):
+    """La clave de negocio fue insertada por otra transacción en competencia."""
+
+
 class RepositorioSolicitudes(Protocol):
     def buscar_por_clave(
         self,
