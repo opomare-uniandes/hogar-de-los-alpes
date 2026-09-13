@@ -108,27 +108,24 @@ kind delete cluster --name hda
 
 ## Alternativa: minikube
 
-Usa minikube cuando Kind no funcione en tu host (p. ej. root filesystem en **ZFS**, ver la
-nota en [Requisitos](#requisitos)). Un **driver de VM** (`kvm2` en Linux, o `virtualbox`)
-mete el filesystem del nodo dentro de la VM y evita el problema de cAdvisor.
+Usa minikube cuando Kind no funcione en tu host.
 
 **Los manifiestos (`base/`, `apps/`, `autoscaling/`) no cambian.** Solo cambian tres cosas:
 crear el cluster, cargar las imagenes y el acceso a `trabajos-service`. `kind-config.yaml`
 **no se usa** con minikube (su `extraPortMappings` es especifico de Kind).
 
-Requisitos: Docker, [minikube](https://minikube.sigs.k8s.io/docs/start/), Helm, kubectl, y
-un driver de VM (`kvm2`/`virtualbox`). Comandos desde la raiz del repositorio.
+Requisitos: Docker, [minikube](https://minikube.sigs.k8s.io/docs/start/), [Helm](https://helm.sh/docs/intro/install/), kubectl, y
+un driver de VM. Comandos desde la raiz del repositorio.
 
 ```bash
-# 1. Cluster local en una VM (perfil "hda" para no chocar con otros clusters minikube).
-#    Pulsar + 4 apps + KEDA necesitan holgura: 4 CPU / 6g es un punto de partida razonable.
-minikube start --driver=kvm2 --cpus=4 --memory=6g --profile hda
+# 1. Cluster local en una VM
+minikube start --driver=docker --cpus=4 --memory=6g --profile hda
 
 # 2. KEDA (igual que con Kind)
 helm repo add kedacore https://kedacore.github.io/charts && helm repo update
 helm install keda kedacore/keda --namespace keda --create-namespace
 
-# 3. Construir imagenes (identico) y cargarlas en la VM (minikube image load, no kind load)
+# 3. Construir imagenes y cargarlas en la VM
 docker build -t hda/trabajos-service:local       --build-arg SERVICE_JAR=trabajos-service.jar       -f deploy/docker-compose/Dockerfile backend
 docker build -t hda/integracion-service:local    --build-arg SERVICE_JAR=integracion-service.jar    -f deploy/docker-compose/Dockerfile backend
 docker build -t hda/notificaciones-service:local --build-arg SERVICE_JAR=notificaciones-service.jar -f deploy/docker-compose/Dockerfile backend
@@ -139,13 +136,13 @@ minikube image load hda/integracion-service:local    -p hda
 minikube image load hda/notificaciones-service:local -p hda
 minikube image load hda/usuarios-service:local       -p hda
 
-# 4. Desplegar (identico a Kind)
+# 4. Desplegar
 kubectl apply -f deploy/k8s/base/
 kubectl wait --for=condition=ready pod -l app=pulsar -n hda --timeout=180s
 kubectl apply -f deploy/k8s/apps/
 kubectl apply -f deploy/k8s/autoscaling/
 
-# 5. Verificar (identico)
+# 5. Verificar
 kubectl get pods -n hda
 kubectl get scaledobject -n hda
 ```
@@ -160,7 +157,7 @@ kubectl get scaledobject -n hda
 > ```
 > `imagePullPolicy: IfNotPresent` de los manifiestos ya sirve para ambos enfoques.
 
-### Acceso a trabajos-service (difiere de Kind)
+### Acceso a trabajos-service
 
 minikube no mapea NodePort a `localhost` como el `extraPortMappings` de Kind. Usa una de:
 
@@ -174,7 +171,7 @@ minikube -p hda service trabajos-service-nodeport -n hda --url
 # imprime un http://<vm-ip>:30081; usa esa URL en vez de localhost:8081.
 ```
 
-Para la prueba de carga/autoescalado (`for i in $(seq 1 200); ...`), apunta el `curl` a la
+Para la prueba de carga/autoescalado, apunta el `curl` a la
 URL que hayas obtenido. El comportamiento de KEDA es identico al del flujo de Kind.
 
 ### Teardown (minikube)
