@@ -7,7 +7,7 @@ Esta carpeta contiene la prueba de concepto de cuatro microservicios Python para
 - [x] Decision arquitectonica de interoperabilidad.
 - [x] Contratos Avro validos V1, V2 y comando canonico.
 - [x] DTO de entrada y traductores ACL V1/V2.
-- [ ] Agregado, puertos y caso de uso de Integraciones.
+- [x] Agregado, puertos y caso de uso idempotente de Integraciones.
 - [ ] Persistencia PostgreSQL de Integraciones.
 - [ ] Consumidores y productor Apache Pulsar.
 - [ ] Contenedores de los cuatro servicios.
@@ -37,4 +37,4 @@ pytest
 python -m integraciones
 ```
 
-Las pruebas contractuales parsean los archivos `.avsc` con `fastavro`. Las pruebas unitarias comprueban la equivalencia semantica V1/V2 y el rechazo de entradas contractuales o semanticamente invalidas.
+Las pruebas contractuales parsean los archivos `.avsc` con `fastavro`. Las pruebas unitarias comprueban la equivalencia semantica V1/V2, el rechazo de entradas invalidas y que una repeticion no cree otro agregado ni otro mensaje de outbox.
