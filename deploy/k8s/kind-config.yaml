@@ -1,0 +1,13 @@
+# Cluster local de Kind para probar el despliegue k8s + KEDA.
+#   kind create cluster --config kind-config.yaml
+# Mapea el NodePort 30081 del cluster a localhost:8081, para llegar a trabajos-service
+# (POST/GET /trabajos) desde la maquina sin port-forward.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: hda
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30081
+        hostPort: 8081
+        protocol: TCP

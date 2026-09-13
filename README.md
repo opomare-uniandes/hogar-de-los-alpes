@@ -239,6 +239,15 @@ El proyecto usa **Spring Boot 4.1.1**. Esa versión de su plugin de Gradle exige
 
 ## Cómo levantarlo
 
+> **Nuevo layout de despliegue (`deploy/`).** El `docker-compose.yml`, su `Dockerfile`,
+> la plantilla `.env.example` y el script `postgres-init/` se movieron a
+> `deploy/docker-compose/`; los manifiestos de Kubernetes con autoescalado por KEDA están
+> en `deploy/k8s/`. La guía completa de ambos flujos (Docker Compose para pruebas rápidas y
+> Kubernetes + KEDA para autoescalado por backlog de Pulsar) está en
+> [`deploy/README.md`](deploy/README.md). Las rutas de comandos de las secciones de abajo
+> que decían `backend/docker-compose.yml` / `backend/.env` ahora viven bajo
+> `deploy/docker-compose/` (p. ej. `cd deploy/docker-compose && docker compose up -d`).
+
 > **Directorios.** Todos los comandos de esta sección se ejecutan **desde la raíz del
 > repositorio** (la carpeta que contiene este `README.md`). El `docker-compose.yml`, el
 > `gradlew` y el `.env` viven dentro de `backend/`, así que los comandos apuntan ahí
