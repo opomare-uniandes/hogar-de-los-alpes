@@ -1,0 +1,19 @@
+{
+  "type": "record",
+  "name": "CrearTrabajoCommandV1",
+  "namespace": "com.hda.eventos.trabajos.commands.v1",
+  "doc": "Comando canonico publicado por integracion-service y consumido por trabajos-service. No expone el contrato de ningun partner.",
+  "fields": [
+    {"name": "id", "type": "string"},
+    {"name": "correlationId", "type": "string"},
+    {"name": "partnerId", "type": "string"},
+    {"name": "externalRequestId", "type": "string"},
+    {"name": "clienteId", "type": "string"},
+    {"name": "categoriaServicio", "type": "string"},
+    {"name": "urgencia", "type": {"type": "enum", "name": "UrgenciaTrabajoV1", "symbols": ["BAJA", "MEDIA", "ALTA", "CRITICA"]}},
+    {"name": "ciudad", "type": "string"},
+    {"name": "pais", "type": "string", "default": "CO"},
+    {"name": "moneda", "type": "string", "default": "COP"},
+    {"name": "fechaSolicitud", "type": {"type": "long", "logicalType": "timestamp-millis"}}
+  ]
+}

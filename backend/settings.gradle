@@ -20,6 +20,9 @@ project(':trabajos-r2dbc-postgresql').projectDir = file('infrastructure/driven-a
 include ':trabajos-pulsar-event-bus'
 project(':trabajos-pulsar-event-bus').projectDir = file('infrastructure/driven-adapters/pulsar-event-bus/trabajos-service')
 
+include ':trabajos-pulsar-command-handler'
+project(':trabajos-pulsar-command-handler').projectDir = file('infrastructure/entry-points/pulsar-command-handler/trabajos-service')
+
 include ':integracion-model'
 project(':integracion-model').projectDir = file('domain/model/integracion-service')
 

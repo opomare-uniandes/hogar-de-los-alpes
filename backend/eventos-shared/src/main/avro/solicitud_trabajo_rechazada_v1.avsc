@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "SolicitudTrabajoRechazadaV1",
+  "namespace": "com.hda.eventos.partner.rechazo.v1",
+  "doc": "Respuesta de integracion para una solicitud partner semánticamente invalida. El mensaje se confirma y no se reintenta.",
+  "fields": [
+    {"name": "id", "type": "string"},
+    {"name": "correlationId", "type": "string"},
+    {"name": "sourceEventId", "type": "string"},
+    {"name": "partnerId", "type": "string"},
+    {"name": "externalRequestId", "type": "string"},
+    {"name": "contractVersion", "type": "string"},
+    {"name": "reason", "type": "string"},
+    {"name": "rejectedAt", "type": {"type": "long", "logicalType": "timestamp-millis"}}
+  ]
+}

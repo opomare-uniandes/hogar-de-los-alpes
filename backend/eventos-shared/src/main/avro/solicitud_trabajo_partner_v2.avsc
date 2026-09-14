@@ -1,0 +1,49 @@
+{
+  "type": "record",
+  "name": "SolicitudTrabajoPartnerV2",
+  "namespace": "com.hda.eventos.partner.v2",
+  "doc": "Contrato de integracion V2 de partners B2B2C. Mantiene el mismo significado de V1, pero reorganiza los datos en referencias anidadas.",
+  "fields": [
+    {"name": "id", "type": "string"},
+    {"name": "correlationId", "type": "string"},
+    {
+      "name": "partner",
+      "type": {"type": "record", "name": "PartnerReferenceV2", "fields": [
+        {"name": "code", "type": "string"}
+      ]}
+    },
+    {
+      "name": "request",
+      "type": {"type": "record", "name": "RequestReferenceV2", "fields": [
+        {"name": "number", "type": "string"},
+        {"name": "requestedAt", "type": {"type": "long", "logicalType": "timestamp-millis"}}
+      ]}
+    },
+    {
+      "name": "insured",
+      "type": {"type": "record", "name": "InsuredReferenceV2", "fields": [
+        {"name": "customerId", "type": "string"}
+      ]}
+    },
+    {
+      "name": "service",
+      "type": {"type": "record", "name": "RequestedServiceV2", "fields": [
+        {"name": "code", "type": "string"},
+        {"name": "priority", "type": "string"}
+      ]}
+    },
+    {
+      "name": "location",
+      "type": {"type": "record", "name": "ServiceLocationV2", "fields": [
+        {"name": "cityCode", "type": "string"},
+        {"name": "countryCode", "type": "string", "default": "CO"}
+      ]}
+    },
+    {
+      "name": "payment",
+      "type": {"type": "record", "name": "PaymentReferenceV2", "fields": [
+        {"name": "currencyCode", "type": "string", "default": "COP"}
+      ]}
+    }
+  ]
+}

@@ -3,9 +3,12 @@ apply plugin: 'org.springframework.boot'
 import org.springframework.boot.gradle.tasks.bundling.BootJar
 
 dependencies {
+    implementation project(':eventos-shared')
+
     implementation project(':trabajos-reactive-web')
     implementation project(':trabajos-r2dbc-postgresql')
     implementation project(':trabajos-pulsar-event-bus')
+    implementation project(':trabajos-pulsar-command-handler')
     implementation project(':trabajos-model')
     implementation project(':trabajos-usecase')
 
