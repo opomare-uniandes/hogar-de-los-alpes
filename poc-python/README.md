@@ -82,3 +82,5 @@ docker compose up --build
 ```
 
 La composición levanta PostgreSQL 16, Apache Pulsar 3.3.1 e `integraciones-service`. Este último espera las dependencias, aplica su migración explícita mediante `MIGRATION_PATH` y consume simultáneamente los tópicos V1 y V2. El resto de bounded contexts del sistema se conectará al tópico canónico de comandos en la composición global de la entrega.
+
+Los puertos por defecto son `5432`, `6650` y `8080`; se pueden reemplazar con `POSTGRES_PORT`, `PULSAR_PORT` y `PULSAR_ADMIN_PORT`. El procedimiento, estímulos y evidencia del escenario se documentan en [`docs/experiments/escenario-interoperabilidad.md`](../docs/experiments/escenario-interoperabilidad.md).

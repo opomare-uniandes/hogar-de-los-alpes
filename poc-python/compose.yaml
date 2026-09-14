@@ -10,6 +10,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 15
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-integraciones-data:/var/lib/postgresql/data
 
@@ -21,6 +23,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 20
+    ports:
+      - "${PULSAR_PORT:-6650}:6650"
+      - "${PULSAR_ADMIN_PORT:-8080}:8080"
 
   pulsar-init:
     image: apachepulsar/pulsar:3.3.1
