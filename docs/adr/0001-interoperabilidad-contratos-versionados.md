@@ -28,6 +28,7 @@ Los contratos externos y el comando canonico usan un sobre basado en los atribut
 | --- | --- | --- |
 | `SolicitudTrabajoPartnerV1` | Evento de integracion | Representa una solicitud emitida fuera del bounded context y conserva el vocabulario del partner. |
 | `SolicitudTrabajoPartnerV2` | Evento de integracion | Es una nueva version mayor del contrato externo con estructura diferente. |
+| `SolicitudTrabajoRechazadaV1` | Evento de integracion | Expone una incompatibilidad semantica o contractual con su causa y correlacion, sin convertirla en un reintento infinito. |
 | `CrearTrabajoCommandV1` | Comando | Solicita una accion concreta al servicio de Trabajos usando el lenguaje canonico de Hogar de los Alpes. |
 | `TrabajoCreado` | Evento de dominio/integracion publicado | Informa un hecho ocurrido despues de que Trabajos acepte el comando. |
 
@@ -47,7 +48,7 @@ Los contratos externos y el comando canonico usan un sobre basado en los atribut
 - Un cambio estructural incompatible crea una version mayor, un nuevo esquema y un nuevo topico.
 - V1 y V2 pueden operar simultaneamente durante la ventana de migracion.
 - Retirar una version requiere medir que ya no recibe trafico y comunicar la fecha de retiro al partner.
-- Una version no soportada se rechaza antes de publicar el comando y queda registrada con su causa.
+- Una version no soportada se rechaza antes de publicar el comando: se publica `SolicitudTrabajoRechazadaV1` con su causa y trazabilidad, y solo entonces se confirma el mensaje de entrada.
 
 ## Modelo de entrega e idempotencia
 

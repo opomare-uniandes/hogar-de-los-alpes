@@ -1,0 +1,53 @@
+services:
+  postgres-integraciones:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: hda
+      POSTGRES_PASSWORD: hda
+      POSTGRES_DB: hda_integraciones
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hda -d hda_integraciones"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    volumes:
+      - postgres-integraciones-data:/var/lib/postgresql/data
+
+  pulsar:
+    image: apachepulsar/pulsar:3.3.1
+    command: bin/pulsar standalone
+    healthcheck:
+      test: ["CMD-SHELL", "bin/pulsar-admin brokers healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  pulsar-init:
+    image: apachepulsar/pulsar:3.3.1
+    depends_on:
+      pulsar:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - "bin/pulsar-admin --admin-url http://pulsar:8080 tenants create hda --allowed-clusters standalone || true; bin/pulsar-admin --admin-url http://pulsar:8080 namespaces create hda/integracion || true; bin/pulsar-admin --admin-url http://pulsar:8080 namespaces create hda/trabajos || true"
+
+  integraciones-service:
+    build:
+      context: .
+      dockerfile: services/integraciones/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://hda:hda@postgres-integraciones:5432/hda_integraciones
+      PULSAR_URL: pulsar://pulsar:6650
+      CONTRACTS_DIR: /app/contracts
+      MIGRATION_PATH: /app/services/integraciones/migrations/001_init.sql
+    depends_on:
+      postgres-integraciones:
+        condition: service_healthy
+      pulsar:
+        condition: service_healthy
+      pulsar-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  postgres-integraciones-data:

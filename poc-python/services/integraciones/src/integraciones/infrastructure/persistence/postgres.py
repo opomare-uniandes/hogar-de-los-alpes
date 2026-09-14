@@ -16,6 +16,7 @@ from sqlalchemy import (
     create_engine,
     insert,
     select,
+    update,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.engine import Engine
@@ -132,6 +133,48 @@ class SqlAlchemyRepositorioOutbox:
                 estado="PENDIENTE",
                 intentos=0,
                 creado_en_ms=mensaje.creado_en_ms,
+            )
+        )
+
+    def obtener_pendientes(self, limite: int = 100) -> list[MensajeOutbox]:
+        rows = self._session.execute(
+            select(outbox_table)
+            .where(outbox_table.c.estado == "PENDIENTE")
+            .order_by(outbox_table.c.creado_en_ms)
+            .limit(limite)
+            .with_for_update(skip_locked=True)
+        ).mappings()
+        return [
+            MensajeOutbox(
+                id=UUID(str(row["id"])),
+                aggregate_id=UUID(str(row["aggregate_id"])),
+                topic=str(row["topic"]),
+                event_type=str(row["event_type"]),
+                correlation_id=UUID(str(row["correlation_id"])),
+                payload=dict(row["payload"]),
+                creado_en_ms=int(row["creado_en_ms"]),
+            )
+            for row in rows
+        ]
+
+    def marcar_publicado(self, mensaje_id: UUID, publicado_en_ms: int) -> None:
+        self._session.execute(
+            update(outbox_table)
+            .where(outbox_table.c.id == mensaje_id)
+            .values(
+                estado="PUBLICADO",
+                publicado_en_ms=publicado_en_ms,
+                ultimo_error=None,
+            )
+        )
+
+    def marcar_error(self, mensaje_id: UUID, error: str) -> None:
+        self._session.execute(
+            update(outbox_table)
+            .where(outbox_table.c.id == mensaje_id)
+            .values(
+                intentos=outbox_table.c.intentos + 1,
+                ultimo_error=error[:2000],
             )
         )
 

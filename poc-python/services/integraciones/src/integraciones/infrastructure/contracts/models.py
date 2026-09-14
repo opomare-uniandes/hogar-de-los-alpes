@@ -1,7 +1,16 @@
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+def _a_timestamp_millis(value: object) -> object:
+    """Normaliza el logicalType timestamp-millis que Pulsar decodifica a datetime."""
+
+    if isinstance(value, datetime):
+        return int(value.timestamp() * 1000)
+    return value
 
 
 class SolicitudEnvelopeBase(BaseModel):
@@ -19,6 +28,11 @@ class SolicitudEnvelopeBase(BaseModel):
     dataschema: str = Field(min_length=1)
     correlation_id: UUID = Field(alias="correlationId")
 
+    @field_validator("time", mode="before")
+    @classmethod
+    def normalizar_time(cls, value: object) -> object:
+        return _a_timestamp_millis(value)
+
 
 class SolicitudTrabajoDataV1(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
@@ -31,6 +45,11 @@ class SolicitudTrabajoDataV1(BaseModel):
     city_code: str = Field(alias="cityCode", min_length=1)
     currency_code: str = Field(alias="currencyCode", min_length=3, max_length=3)
     requested_at: int = Field(alias="requestedAt", ge=0)
+
+    @field_validator("requested_at", mode="before")
+    @classmethod
+    def normalizar_requested_at(cls, value: object) -> object:
+        return _a_timestamp_millis(value)
 
 
 class SolicitudTrabajoPartnerV1Create(SolicitudEnvelopeBase):
@@ -49,6 +68,11 @@ class RequestReferenceV2(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
     number: str = Field(min_length=1)
     requested_at: int = Field(alias="requestedAt", ge=0)
+
+    @field_validator("requested_at", mode="before")
+    @classmethod
+    def normalizar_requested_at(cls, value: object) -> object:
+        return _a_timestamp_millis(value)
 
 
 class InsuredReferenceV2(BaseModel):
@@ -89,4 +113,3 @@ class SolicitudTrabajoPartnerV2Create(SolicitudEnvelopeBase):
 
     event_type: Literal["com.hda.partner.solicitud-trabajo.v2"] = Field(alias="type")
     data: SolicitudTrabajoDataV2
-

@@ -1,0 +1,31 @@
+{
+  "type": "record",
+  "name": "SolicitudTrabajoRechazadaV1",
+  "namespace": "com.hda.integracion.events.v1",
+  "doc": "Evento emitido por el ACL cuando una solicitud no cumple el contrato o las reglas semanticas.",
+  "fields": [
+    {"name": "specversion", "type": "string", "default": "1.0"},
+    {"name": "id", "type": {"type": "string", "logicalType": "uuid"}},
+    {"name": "source", "type": "string", "default": "urn:hda:service:integraciones"},
+    {"name": "type", "type": "string", "default": "com.hda.integracion.solicitud-rechazada.v1"},
+    {"name": "subject", "type": "string"},
+    {"name": "time", "type": {"type": "long", "logicalType": "timestamp-millis"}},
+    {"name": "datacontenttype", "type": "string", "default": "application/avro"},
+    {"name": "dataschema", "type": "string"},
+    {
+      "name": "data",
+      "type": {
+        "type": "record",
+        "name": "SolicitudTrabajoRechazadaDataV1",
+        "fields": [
+          {"name": "originalTopic", "type": "string"},
+          {"name": "contractVersion", "type": "string"},
+          {"name": "sourceEventId", "type": ["null", "string"], "default": null},
+          {"name": "errorType", "type": "string"},
+          {"name": "reason", "type": "string"},
+          {"name": "rawPayload", "type": "string"}
+        ]
+      }
+    }
+  ]
+}

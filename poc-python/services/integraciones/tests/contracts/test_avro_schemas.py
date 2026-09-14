@@ -13,9 +13,9 @@ def test_todos_los_contratos_son_esquemas_avro_validos():
         "crear_trabajo_command_v1.avsc",
         "solicitud_trabajo_partner_v1.avsc",
         "solicitud_trabajo_partner_v2.avsc",
+        "solicitud_trabajo_rechazada_v1.avsc",
     }
 
     for schema_path in schemas:
         with schema_path.open(encoding="utf-8") as schema_file:
             parse_schema(json.load(schema_file))
-
