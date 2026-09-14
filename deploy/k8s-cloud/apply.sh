@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Renders the __PLACEHOLDER__ tokens in base/, apps/ and autoscaling/ from Terraform outputs
+# (RDS/Redis endpoints, RDS password, ECR image URLs) and applies everything with kubectl.
+# Nothing secret is ever written to a committed file: rendering happens into a throwaway
+# temp directory that is removed on exit.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TF_DIR="$SCRIPT_DIR/../terraform"
+
+# Account-specific values (profile, region) come from Terraform's own outputs, which read
+# them from the gitignored sandbox.auto.tfvars -- nothing account-specific is hardcoded here.
+AWS_PROFILE="${AWS_PROFILE:-$(terraform -chdir="$TF_DIR" output -raw aws_profile)}"
+AWS_REGION="${AWS_REGION:-$(terraform -chdir="$TF_DIR" output -raw aws_region)}"
+export AWS_PROFILE AWS_REGION
+
+CLUSTER_NAME=$(terraform -chdir="$TF_DIR" output -raw eks_cluster_name)
+RDS_ENDPOINT=$(terraform -chdir="$TF_DIR" output -raw rds_endpoint)
+REDIS_ENDPOINT=$(terraform -chdir="$TF_DIR" output -raw redis_endpoint)
+POSTGRES_PASSWORD=$(terraform -chdir="$TF_DIR" output -raw rds_master_password)
+
+ECR_JSON=$(terraform -chdir="$TF_DIR" output -json ecr_repository_urls)
+TRABAJOS_IMAGE="$(echo "$ECR_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["trabajos-service"] + ":latest")')"
+INTEGRACION_IMAGE="$(echo "$ECR_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["integracion-service"] + ":latest")')"
+NOTIFICACIONES_IMAGE="$(echo "$ECR_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["notificaciones-service"] + ":latest")')"
+USUARIOS_IMAGE="$(echo "$ECR_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["usuarios-service"] + ":latest")')"
+
+echo "Cluster: $CLUSTER_NAME"
+aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION" --profile "$AWS_PROFILE"
+
+RENDER_DIR="$(mktemp -d)"
+trap 'rm -rf "$RENDER_DIR"' EXIT
+
+cp -r "$SCRIPT_DIR"/base "$SCRIPT_DIR"/apps "$SCRIPT_DIR"/autoscaling "$RENDER_DIR"/
+
+find "$RENDER_DIR" -type f -name '*.yaml' -exec sed -i \
+  -e "s#__RDS_ENDPOINT__#${RDS_ENDPOINT}#g" \
+  -e "s#__REDIS_ENDPOINT__#${REDIS_ENDPOINT}#g" \
+  -e "s#__POSTGRES_PASSWORD__#${POSTGRES_PASSWORD}#g" \
+  -e "s#__TRABAJOS_IMAGE__#${TRABAJOS_IMAGE}#g" \
+  -e "s#__INTEGRACION_IMAGE__#${INTEGRACION_IMAGE}#g" \
+  -e "s#__NOTIFICACIONES_IMAGE__#${NOTIFICACIONES_IMAGE}#g" \
+  -e "s#__USUARIOS_IMAGE__#${USUARIOS_IMAGE}#g" \
+  {} +
+
+kubectl apply -f "$RENDER_DIR/base"
+kubectl wait --for=condition=ready pod -l app=pulsar -n hda --timeout=180s
+kubectl apply -f "$RENDER_DIR/apps"
+kubectl apply -f "$RENDER_DIR/autoscaling"
+
+echo
+echo "Pods:"
+kubectl get pods -n hda
+
+echo
+echo "Esperando la URL del ALB (puede tardar 1-2 min tras el primer apply)..."
+for _ in $(seq 1 24); do
+  ADDR=$(kubectl get gateway hda-gateway -n hda -o jsonpath='{.status.addresses[0].value}' 2>/dev/null || true)
+  if [ -n "$ADDR" ]; then
+    echo "Gateway listo: http://$ADDR/trabajos"
+    exit 0
+  fi
+  sleep 5
+done
+echo "El Gateway aun no tiene direccion asignada; revisa con:"
+echo "  kubectl get gateway hda-gateway -n hda -o yaml"

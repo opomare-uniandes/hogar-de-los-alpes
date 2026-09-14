@@ -1,0 +1,11 @@
+# gp3 StorageClass para el volumen persistente de Pulsar (el addon EBS CSI del cluster
+# solo trae gp2 por defecto). WaitForFirstConsumer para que el volumen se cree en la misma
+# AZ que el pod que lo monta.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gp3
+provisioner: ebs.csi.aws.com
+volumeBindingMode: WaitForFirstConsumer
+parameters:
+  type: gp3
