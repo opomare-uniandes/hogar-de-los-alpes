@@ -1,0 +1,171 @@
+# Entorno local completo (infra + 4 servicios) para pruebas rapidas.
+#
+# Uso (desde deploy/docker-compose/):
+#   cp .env.example .env   # ajusta al menos POSTGRES_PASSWORD
+#   docker compose up -d
+#
+# Solo infra (como antes, corriendo los servicios con `java -jar` por fuera):
+#   docker compose up -d postgres pulsar redis
+#
+# Los servicios Spring leen host/credenciales por variables de entorno; aqui apuntan
+# a los NOMBRES DE SERVICIO internos de compose (postgres, pulsar, redis), no a localhost.
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: hda-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hda_trabajos}
+      POSTGRES_USER: ${POSTGRES_USER:-hda}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeit}
+      POSTGRES_USUARIOS_DB: ${POSTGRES_USUARIOS_DB:-hda_usuarios}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hda} -d ${POSTGRES_DB:-hda_trabajos}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  pulsar:
+    image: apachepulsar/pulsar:4.2.4
+    container_name: hda-pulsar
+    command: bin/pulsar standalone
+    ports:
+      - "6650:6650"   # protocolo binario (productores/consumidores)
+      - "8080:8080"   # admin REST + schema registry
+    healthcheck:
+      test: ["CMD-SHELL", "bin/pulsar-admin brokers healthcheck || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 60s
+
+  # One-shot: crea el tenant "hda" y los namespaces que usan los topicos del proyecto.
+  # Equivale al paso 2 del README (pulsar-admin ... create) y al Job pulsar-bootstrap de k8s.
+  # Sin esto, los servicios que publican/consumen en persistent://hda/... fallan con
+  # "Namespace not found". Idempotente (|| true) y corre una sola vez (restart: "no").
+  pulsar-init:
+    image: apachepulsar/pulsar:4.2.4
+    container_name: hda-pulsar-init
+    depends_on:
+      pulsar:
+        condition: service_healthy
+    restart: "no"
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        set -e
+        bin/pulsar-admin --admin-url http://pulsar:8080 tenants create hda || true
+        bin/pulsar-admin --admin-url http://pulsar:8080 namespaces create hda/trabajos || true
+        bin/pulsar-admin --admin-url http://pulsar:8080 namespaces create hda/integracion || true
+        bin/pulsar-admin --admin-url http://pulsar:8080 namespaces create hda/notificaciones || true
+        echo "Tenant/namespaces hda listos."
+
+  redis:
+    image: redis:8.10.1-alpine
+    container_name: hda-redis
+    command: redis-server --appendonly yes   # AOF: la deduplicacion sobrevive reinicios
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+  # --- Los 4 servicios Spring Boot ---
+  # Comparten la misma imagen (el jar se selecciona por SPRING_CONFIG_NAME/main class del jar).
+  # Cada uno se construye con su BootJar; aqui se usa el jar ya empaquetado via Dockerfile.
+  trabajos-service:
+    build:
+      context: ../../backend
+      dockerfile: ../deploy/docker-compose/Dockerfile
+      args:
+        SERVICE_JAR: trabajos-service.jar
+    image: hda/trabajos-service:local
+    container_name: hda-trabajos
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pulsar-init:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-hda_trabajos}
+      POSTGRES_USER: ${POSTGRES_USER:-hda}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeit}
+      PULSAR_SERVICE_URL: pulsar://pulsar:6650
+      PULSAR_ADMIN_URL: http://pulsar:8080
+    ports:
+      - "8081:8081"
+
+  integracion-service:
+    build:
+      context: ../../backend
+      dockerfile: ../deploy/docker-compose/Dockerfile
+      args:
+        SERVICE_JAR: integracion-service.jar
+    image: hda/integracion-service:local
+    container_name: hda-integracion
+    depends_on:
+      pulsar-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      PULSAR_SERVICE_URL: pulsar://pulsar:6650
+      PULSAR_ADMIN_URL: http://pulsar:8080
+    ports:
+      - "8082:8082"
+
+  notificaciones-service:
+    build:
+      context: ../../backend
+      dockerfile: ../deploy/docker-compose/Dockerfile
+      args:
+        SERVICE_JAR: notificaciones-service.jar
+    image: hda/notificaciones-service:local
+    container_name: hda-notificaciones
+    depends_on:
+      pulsar-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+      usuarios-service:
+        condition: service_started
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      PULSAR_SERVICE_URL: pulsar://pulsar:6650
+      PULSAR_ADMIN_URL: http://pulsar:8080
+      USUARIOS_SERVICE_BASE_URL: http://usuarios-service:8084
+    ports:
+      - "8083:8083"
+
+  usuarios-service:
+    build:
+      context: ../../backend
+      dockerfile: ../deploy/docker-compose/Dockerfile
+      args:
+        SERVICE_JAR: usuarios-service.jar
+    image: hda/usuarios-service:local
+    container_name: hda-usuarios
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USUARIOS_DB: ${POSTGRES_USUARIOS_DB:-hda_usuarios}
+      POSTGRES_USER: ${POSTGRES_USER:-hda}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeit}
+    ports:
+      - "8084:8084"
+
+volumes:
+  pgdata:
+  redisdata:

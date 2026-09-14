@@ -1,0 +1,114 @@
+# Postgres (una instancia, con la base hda_trabajos por defecto y hda_usuarios creada
+# por el script de init). Deployment simple para local; en produccion seria StatefulSet.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: hda
+data:
+  01-create-usuarios-db.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    DB_USUARIOS="${POSTGRES_USUARIOS_DB:-hda_usuarios}"
+    EXISTE=$(psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres -tAc \
+        "SELECT 1 FROM pg_database WHERE datname = '${DB_USUARIOS}'")
+    if [ "$EXISTE" != "1" ]; then
+        psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres -c \
+            "CREATE DATABASE \"${DB_USUARIOS}\" OWNER \"${POSTGRES_USER}\";"
+    fi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  namespace: hda
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: hda
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:18-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: hda-endpoints
+                  key: POSTGRES_DB
+            - name: POSTGRES_USUARIOS_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: hda-endpoints
+                  key: POSTGRES_USUARIOS_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+            # PG18 (imagen Docker) gestiona el subdir por version bajo /var/lib/postgresql;
+            # se monta ahi (no en /data) y no se fija PGDATA, igual que en docker-compose.
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-data
+        - name: init
+          configMap:
+            name: postgres-init
+            defaultMode: 0755
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: hda
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

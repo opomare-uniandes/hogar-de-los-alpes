@@ -6,12 +6,13 @@ spring:
     name: integracion-service
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
 hda:
   pulsar:
-    service-url: pulsar://localhost:6650
+    service-url: ${PULSAR_SERVICE_URL:pulsar://localhost:6650}
+    admin-url: ${PULSAR_ADMIN_URL:http://localhost:8080}
     topic-trabajo-creado: persistent://hda/trabajos/trabajo-creado
     topic-trabajo-siniestro-creado: persistent://hda/integracion/trabajo-siniestro-creado
     subscription: integracion-service-sub

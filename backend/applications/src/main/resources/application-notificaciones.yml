@@ -6,19 +6,20 @@ spring:
     name: notificaciones-service
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
 hda:
   pulsar:
-    service-url: pulsar://localhost:6650
+    service-url: ${PULSAR_SERVICE_URL:pulsar://localhost:6650}
+    admin-url: ${PULSAR_ADMIN_URL:http://localhost:8080}
     topic-trabajo-creado: persistent://hda/trabajos/trabajo-creado
     topic-notificacion-enviada: persistent://hda/notificaciones/notificacion-enviada
     subscription: notificaciones-service-sub
   idempotencia:
     ttl: PT24H
   usuarios-service:
-    base-url: http://localhost:8084
+    base-url: ${USUARIOS_SERVICE_BASE_URL:http://localhost:8084}
 
 logging:
   level:
