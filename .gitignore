@@ -12,3 +12,14 @@ out/
 # (la plantilla deploy/docker-compose/.env.example SI se versiona)
 .env
 deploy/docker-compose/.env
+
+# Python generated artifacts
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+**/.pytest_cache/
+*.egg-info/
+**/*.egg-info/

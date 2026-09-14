@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hda-integraciones-service"
+version = "0.1.0"
+description = "ACL de integraciones B2B2C para Hogar de los Alpes"
+requires-python = ">=3.10"
+dependencies = [
+    "fastavro>=1.10,<2",
+    "pydantic>=2.10,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3,<9",
+]
+persistence = [
+    "psycopg[binary]>=3.2,<4",
+    "sqlalchemy>=2.0,<3",
+]
+messaging = [
+    "pulsar-client>=3.6,<4",
+]
+
+[project.scripts]
+hda-integraciones = "integraciones.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+pythonpath = ["src"]
+testpaths = ["tests"]

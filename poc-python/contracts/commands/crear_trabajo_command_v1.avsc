@@ -1,0 +1,42 @@
+{
+  "type": "record",
+  "name": "CrearTrabajoCommandV1",
+  "namespace": "com.hda.trabajos.commands.v1",
+  "doc": "Comando canonico publicado por Integraciones y consumido por Trabajos.",
+  "fields": [
+    {"name": "specversion", "type": "string", "default": "1.0"},
+    {"name": "id", "type": {"type": "string", "logicalType": "uuid"}},
+    {"name": "source", "type": "string", "default": "urn:hda:service:integraciones"},
+    {"name": "type", "type": "string", "default": "com.hda.trabajos.crear.v1"},
+    {"name": "subject", "type": "string"},
+    {"name": "time", "type": {"type": "long", "logicalType": "timestamp-millis"}},
+    {"name": "datacontenttype", "type": "string", "default": "application/avro"},
+    {"name": "dataschema", "type": "string"},
+    {"name": "correlationId", "type": {"type": "string", "logicalType": "uuid"}},
+    {
+      "name": "data",
+      "type": {
+        "type": "record",
+        "name": "CrearTrabajoDataV1",
+        "fields": [
+          {"name": "partnerId", "type": "string"},
+          {"name": "externalRequestId", "type": "string"},
+          {"name": "clienteId", "type": "string"},
+          {"name": "categoriaServicio", "type": "string"},
+          {
+            "name": "urgencia",
+            "type": {
+              "type": "enum",
+              "name": "UrgenciaTrabajoV1",
+              "symbols": ["BAJA", "MEDIA", "ALTA", "CRITICA"]
+            }
+          },
+          {"name": "ciudad", "type": "string"},
+          {"name": "pais", "type": "string", "default": "CO"},
+          {"name": "moneda", "type": "string", "default": "COP"},
+          {"name": "fechaSolicitud", "type": {"type": "long", "logicalType": "timestamp-millis"}}
+        ]
+      }
+    }
+  ]
+}
