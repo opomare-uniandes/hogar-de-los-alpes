@@ -1,0 +1,15 @@
+apply plugin: 'org.springframework.boot'
+
+dependencies {
+    implementation project(':usuarios-model')
+    implementation project(':usuarios-usecase')
+    implementation project(':usuarios-reactive-web')
+    implementation project(':usuarios-r2dbc-postgresql')
+
+    implementation 'org.springframework.boot:spring-boot-starter' // @SpringBootApplication
+    implementation 'org.springframework.boot:spring-boot-r2dbc' // spring.sql.init.mode: always
+}
+
+bootJar {
+    archiveFileName = 'usuarios-service.jar'
+}

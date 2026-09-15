@@ -1,0 +1,39 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: integracion-service-scaler
+  namespace: hda
+spec:
+  scaleTargetRef:
+    name: integracion-service
+  minReplicaCount: 1
+  maxReplicaCount: 10
+  cooldownPeriod: 30
+  pollingInterval: 15
+  triggers:
+    - type: pulsar
+      metadata:
+        adminURL: http://pulsar.hda.svc.cluster.local:8080
+        topic: persistent://hda/trabajos/trabajo-creado
+        subscription: integracion-service-sub
+        msgBacklogThreshold: "10"
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: notificaciones-service-scaler
+  namespace: hda
+spec:
+  scaleTargetRef:
+    name: notificaciones-service
+  minReplicaCount: 1
+  maxReplicaCount: 10
+  cooldownPeriod: 30
+  pollingInterval: 15
+  triggers:
+    - type: pulsar
+      metadata:
+        adminURL: http://pulsar.hda.svc.cluster.local:8080
+        topic: persistent://hda/trabajos/trabajo-creado
+        subscription: notificaciones-service-sub
+        msgBacklogThreshold: "10"

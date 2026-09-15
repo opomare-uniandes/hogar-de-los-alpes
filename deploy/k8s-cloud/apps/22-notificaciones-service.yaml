@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notificaciones-service
+  namespace: hda
+  labels:
+    app: notificaciones-service
+spec:
+  replicas: 1   # empieza en 1 para registrar la suscripcion; luego KEDA la escala.
+  selector:
+    matchLabels:
+      app: notificaciones-service
+  template:
+    metadata:
+      labels:
+        app: notificaciones-service
+    spec:
+      containers:
+        - name: notificaciones-service
+          image: __NOTIFICACIONES_IMAGE__
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8083
+          env:
+            - name: REDIS_HOST
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: REDIS_HOST } }
+            - name: REDIS_PORT
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: REDIS_PORT } }
+            - name: PULSAR_SERVICE_URL
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: PULSAR_SERVICE_URL } }
+            - name: PULSAR_ADMIN_URL
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: PULSAR_ADMIN_URL } }
+            - name: USUARIOS_SERVICE_BASE_URL
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: USUARIOS_SERVICE_BASE_URL } }
+          resources:
+            requests: { memory: "384Mi", cpu: "200m" }
+            limits: { memory: "768Mi", cpu: "1" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notificaciones-service
+  namespace: hda
+spec:
+  selector:
+    app: notificaciones-service
+  ports:
+    - port: 8083
+      targetPort: 8083

@@ -71,7 +71,7 @@ graph LR
 ```
 
 - Azul: los cuatro servicios Spring Boot (procesos independientes, cada uno con su propio
-  `main()` - ver `applications`).
+  `main()` - ver `<servicio>/application`, p. ej. `backend/trabajos/application`).
 - Naranja: Postgres — un solo contenedor, con **una base separada por servicio**
   (`hda_trabajos`, `hda_usuarios`; topología de datos descentralizada). `integracion-service`
   y `notificaciones-service` no persisten nada propio (solo Redis para idempotencia).
@@ -94,115 +94,120 @@ existiera (solo `notificaciones-service`, que es quien lo consulta).
 
 ## Estructura: arquitectura limpia, 4 servicios
 
-Sigue el layout de carpetas del
+Cada servicio es su propia carpeta de **primer nivel** dentro de `backend/`
+(`trabajos`/`integracion`/`notificaciones`/`usuarios` — el nombre corto, sin el sufijo
+`-service`; ese sufijo lo siguen llevando otros identificadores que sí lo necesitan para
+distinguirse de otras cosas: el nombre Spring (`spring.application.name: trabajos-service`),
+la imagen Docker/ECR (`hda/trabajos-service`), el objeto Kubernetes (`Service
+trabajos-service`) y el jar (`trabajos-service.jar`); la carpeta no lo necesita porque ya
+está sola dentro de `backend/`). Dentro de cada una, la misma arquitectura hexagonal:
+`domain/{model,usecase}` (sin dependencia de framework) e `infrastructure/{entry-points,
+driven-adapters}` (adaptadores concretos) — así el árbol muestra primero el servicio y
+luego la capa, al revés que el
 [scaffold-clean-architecture de Bancolombia](https://github.com/bancolombia/scaffold-clean-architecture)
-con `applications`, `domain` e `infrastructure` como carpetas de **primer nivel del
-proyecto** (una por capa). Dentro de `domain` e `infrastructure` va primero el **tipo**
-de módulo (`model`/`usecase`, `entry-points/<adaptador>`, `driven-adapters/<adaptador>`) y
-el servicio (`trabajos-service`/`integracion-service`/`notificaciones-service`/
-`usuarios-service`) queda como la carpeta más interna — la que directamente contiene su
-propio `backend/build.gradle` y `src/`. Así, `domain` o `infrastructure` se ven de inmediato
-bajando por el árbol, sin que el nombre del servicio se interponga antes. La regla de
-dependencia se cumple igual: todo apunta hacia adentro, hacia `domain`.
+en el que se basó originalmente este proyecto (que pone `domain`/`infrastructure` como
+carpetas de primer nivel, compartidas por todos los servicios) — el cambio se hizo para
+que trabajar en un servicio no obligue a saltar entre 4 carpetas de nivel superior, y para
+que un límite de módulo cruzado (p. ej. `trabajos` dependiendo de algo de `usuarios`) sea
+visible de inmediato en el árbol. La regla de dependencia se cumple igual: todo apunta
+hacia adentro, hacia `domain`.
 
-`applications` es la excepción: ahí **no hay ambigüedad de nombres entre servicios**
-(a diferencia de `model`, `usecase`, `pulsar-event-bus`, que se repiten), así que es un
-único módulo Gradle (`:applications`) que contiene los cuatro `main()`
-(`TrabajosServiceApplication`, `IntegracionServiceApplication`,
-`NotificacionesServiceApplication`, `UsuariosServiceApplication`) uno junto al otro — sus
-paquetes (`com.hda.trabajos` / `com.hda.integracion` / `com.hda.notificaciones` /
-`com.hda.usuarios`) no chocan. Sigue produciendo cuatro jars ejecutables independientes vía
-cuatro tareas Gradle `BootJar` explícitas, en vez de una carpeta por servicio.
+Cada servicio agrega un tercer tipo de carpeta, `application/`: el módulo Gradle bootable
+(el `main()`, el wiring de Spring que junta `domain`/`infrastructure` — p. ej.
+`UseCasesConfig`, `PulsarConfig` — y su propio `application.yml`). Es el único punto que
+conoce tanto `domain` como `infrastructure` a la vez (composition root). Antes, los cuatro
+`main()` vivían juntos en un solo módulo `:applications` que dependía de los cuatro
+servicios a la vez — construir cualquiera de los cuatro jars compilaba y empaquetaba los
+otros tres también, y una app sin Redis (`trabajos`/`usuarios`) terminaba con las clases de
+autoconfiguración de Redis en su classpath solo porque las otras dos sí lo usaban (de ahí
+workarounds como `@SpringBootApplication(exclude = ...)` que ya no existen). Con
+`application/` por servicio, cada uno tiene su propio classpath real: construir
+`usuarios-service.jar` no toca código de `trabajos`/`integracion`/`notificaciones` en
+absoluto (ver `deploy/docker-compose/Dockerfile`, un solo `ARG SERVICE` selecciona cuál).
 
-Como el resto del repo sí tiene **cuatro servicios** en un solo build Gradle (algo que los
-ejemplos de un solo servicio del scaffold no cubren), esos nombres de proyecto Gradle se
-prefijan por servicio (`:trabajos-model`, `:integracion-usecase`, `:notificaciones-model`,
-`:usuarios-model`, etc. — ver `backend/settings.gradle`) para no colisionar entre si.
+Los nombres de proyecto Gradle sí se prefijan por servicio (`:trabajos-model`,
+`:integracion-usecase`, `:notificaciones-application`, `:usuarios-model`, etc. — ver
+`backend/settings.gradle`), porque ahí sí colisionarían entre sí (varios servicios tienen
+un módulo `model`, un `usecase`, etc.) — es una convención de nombres Gradle, no de
+carpetas.
 
 ```shell
-hda-trabajos-parent/
-├── eventos-shared/                            Esquemas Avro (published language) — el
-│                                               contrato entre servicios, y hacia afuera.
-│                                               No sigue el layout del scaffold: es una
-│                                               libreria plana compartida por los cuatro
-│                                               servicios (shared kernel).
+backend/
+├── eventos-shared/                      Esquemas Avro (published language) — el contrato
+│                                         entre servicios, y hacia afuera. Única carpeta que
+│                                         no sigue este patrón: librería plana compartida
+│                                         por los cuatro servicios (shared kernel).
 │
-├── applications/                              UN solo módulo Gradle para los cuatro main():
-│   └── src/main/java/com/hda/
-│       ├── trabajos/                          TrabajosServiceApplication + wiring
-│       │                                      (UseCasesConfig, PulsarConfig).
-│       ├── integracion/                       IntegracionServiceApplication + wiring
-│       │                                      (UseCasesConfig, PulsarClientConfig).
-│       ├── notificaciones/                    NotificacionesServiceApplication + wiring
-│       │                                      (UseCasesConfig, PulsarClientConfig).
-│       └── usuarios/                          UsuariosServiceApplication + wiring
-│                                               (UseCasesConfig).
-│       resources/
-│       ├── application-trabajos.yml            (spring.config.name por servicio, ver main())
-│       ├── application-integracion.yml
-│       ├── application-notificaciones.yml
-│       └── application-usuarios.yml
+├── trabajos/
+│   ├── domain/
+│   │   ├── model/                       Trabajo, Moneda, CategoriaServicio, ... y los
+│   │   │                                puertos (gateways/): TrabajoRepository,
+│   │   │                                TrabajoEventPublisher. Cero dependencias.
+│   │   └── usecase/                     CrearTrabajoUseCase, ConsultarTrabajoUseCase. Sin
+│   │                                    anotaciones de Spring a propósito.
+│   ├── infrastructure/
+│   │   ├── entry-points/reactive-web/   TrabajoController (API HTTP, WebFlux).
+│   │   └── driven-adapters/
+│   │       ├── r2dbc-postgresql/        Implementa TrabajoRepository (hda_trabajos).
+│   │       └── pulsar-event-bus/        Implementa TrabajoEventPublisher (Pulsar+Avro).
+│   └── application/                     TrabajosServiceApplication + wiring (UseCasesConfig,
+│                                         PulsarConfig) + application.yml. Módulo bootable
+│                                         (`:trabajos-application`) → trabajos-service.jar.
 │
-├── domain/
-│   ├── model/
-│   │   ├── trabajos-service/                  Trabajo, Moneda, CategoriaServicio, ... y los
-│   │   │                                      puertos (gateways/): TrabajoRepository,
-│   │   │                                      TrabajoEventPublisher. Cero dependencias.
-│   │   ├── integracion-service/                TrabajoCreadoEvento (entrada), TrabajoSiniestro
-│   │   │                                        (salida) y el puerto TrabajoSiniestroPublisher.
-│   │   ├── notificaciones-service/              TrabajoCreadoEvento (entrada, con clienteId),
-│   │   │                                        NotificacionEnviada (salida), ContactoUsuario y
-│   │   │                                        los puertos CanalNotificacion (antes EmailSender,
-│   │   │                                        generalizado - Modificabilidad 1.1),
-│   │   │                                        ConsultaUsuarioGateway y
-│   │   │                                        NotificacionEnviadaPublisher.
-│   │   └── usuarios-service/                    Usuario (AggregateRoot<UUID>, 2 flags de canal)
-│   │                                             y el puerto UsuarioRepository. Seedwork propio,
-│   │                                             duplicado (no compartido) - mismo criterio que
-│   │                                             trabajos-service (integracion-service y
-│   │                                             notificaciones-service no llevan seedwork: no
-│   │                                             modelan un agregado propio).
-│   └── usecase/
-│       ├── trabajos-service/                  CrearTrabajoUseCase, ConsultarTrabajoUseCase.
-│       │                                      Sin anotaciones de Spring a propósito.
-│       ├── integracion-service/               TraducirTrabajoCreadoUseCase.
-│       ├── notificaciones-service/             EnviarNotificacionUseCase (consulta el contacto
-│       │                                      vía ConsultaUsuarioGateway y dispara 0, 1 o 2
-│       │                                      canales según sus flags).
-│       └── usuarios-service/                   ConsultarUsuarioUseCase.
+├── integracion/
+│   ├── domain/
+│   │   ├── model/                       TrabajoCreadoEvento (entrada), TrabajoSiniestro
+│   │   │                                (salida) y el puerto TrabajoSiniestroPublisher.
+│   │   └── usecase/                     TraducirTrabajoCreadoUseCase.
+│   ├── infrastructure/
+│   │   ├── entry-points/pulsar-event-handler/  Consume trabajo-creado (driving adapter).
+│   │   └── driven-adapters/
+│   │       ├── pulsar-event-bus/        Implementa TrabajoSiniestroPublisher, publica
+│   │       │                            trabajo-siniestro-creado.
+│   │       └── redis-idempotency/       Deduplicación de eventos por id.
+│   └── application/                     IntegracionServiceApplication + wiring
+│                                         (UseCasesConfig, PulsarClientConfig).
 │
-├── infrastructure/
-│   ├── entry-points/
-│   │   ├── reactive-web/
-│   │   │   ├── trabajos-service/               TrabajoController (API HTTP, WebFlux).
-│   │   │   └── usuarios-service/                UsuarioController: único endpoint
-│   │   │                                         GET /usuarios/{clienteId}/contacto.
-│   │   └── pulsar-event-handler/
-│   │       ├── integracion-service/                Consume trabajo-creado (driving adapter).
-│   │       └── notificaciones-service/              Consume trabajo-creado (suscripción propia).
-│   └── driven-adapters/
-│       ├── r2dbc-postgresql/
-│       │   ├── trabajos-service/               Implementa TrabajoRepository (hda_trabajos).
-│       │   └── usuarios-service/                Implementa UsuarioRepository (hda_usuarios -
-│       │                                         base separada, ver docker/postgres-init/).
-│       ├── pulsar-event-bus/
-│       │   ├── trabajos-service/                   Implementa TrabajoEventPublisher (Pulsar+Avro).
-│       │   ├── integracion-service/                Implementa TrabajoSiniestroPublisher,
-│       │   │                                         publica trabajo-siniestro-creado.
-│       │   └── notificaciones-service/              Implementa NotificacionEnviadaPublisher,
-│       │                                             publica notificacion-enviada.
-│       ├── canal-notificacion/notificaciones-service/  Implementa CanalNotificacion: dos
-│       │                                         adaptadores simulados (solo loguean, sin
-│       │                                         proveedor real) - EmailChannelAdapter y
-│       │                                         WhatsAppChannelAdapter.
-│       └── http-client/notificaciones-service/     Implementa ConsultaUsuarioGateway (WebClient) -
-│                                                     el único punto síncrono del sistema, hacia
-│                                                     GET /usuarios/{clienteId}/contacto.
+├── notificaciones/
+│   ├── domain/
+│   │   ├── model/                       TrabajoCreadoEvento (entrada, con clienteId),
+│   │   │                                NotificacionEnviada (salida), ContactoUsuario y los
+│   │   │                                puertos CanalNotificacion (antes EmailSender,
+│   │   │                                generalizado - Modificabilidad 1.1),
+│   │   │                                ConsultaUsuarioGateway y NotificacionEnviadaPublisher.
+│   │   └── usecase/                     EnviarNotificacionUseCase (consulta el contacto vía
+│   │                                    ConsultaUsuarioGateway y dispara 0, 1 o 2 canales
+│   │                                    según sus flags).
+│   ├── infrastructure/
+│   │   ├── entry-points/pulsar-event-handler/  Consume trabajo-creado (suscripción propia).
+│   │   └── driven-adapters/
+│   │       ├── pulsar-event-bus/        Implementa NotificacionEnviadaPublisher, publica
+│   │       │                            notificacion-enviada.
+│   │       ├── canal-notificacion/      Implementa CanalNotificacion: dos adaptadores
+│   │       │                            simulados (solo loguean, sin proveedor real) -
+│   │       │                            EmailChannelAdapter y WhatsAppChannelAdapter.
+│   │       ├── http-client/             Implementa ConsultaUsuarioGateway (WebClient) - el
+│   │       │                            único punto síncrono del sistema, hacia
+│   │       │                            GET /usuarios/{clienteId}/contacto.
+│   │       └── redis-idempotency/       Deduplicación de eventos por id.
+│   └── application/                     NotificacionesServiceApplication + wiring
+│                                         (UseCasesConfig, PulsarClientConfig).
 │
-├── docker/postgres-init/                      Script que crea la base hda_usuarios al levantar
-│                                               el contenedor Postgres (ver "Cómo levantarlo").
-│
-├── docker-compose.yml                         Postgres + Pulsar + Redis.
+├── usuarios/
+│   ├── domain/
+│   │   ├── model/                       Usuario (AggregateRoot<UUID>, 2 flags de canal) y el
+│   │   │                                puerto UsuarioRepository. Seedwork propio, duplicado
+│   │   │                                (no compartido) - mismo criterio que trabajos
+│   │   │                                (integracion y notificaciones no llevan seedwork: no
+│   │   │                                modelan un agregado propio).
+│   │   └── usecase/                     ConsultarUsuarioUseCase.
+│   ├── infrastructure/
+│   │   ├── entry-points/reactive-web/   UsuarioController: único endpoint
+│   │   │                                GET /usuarios/{clienteId}/contacto.
+│   │   └── driven-adapters/
+│   │       └── r2dbc-postgresql/        Implementa UsuarioRepository (hda_usuarios - base
+│   │                                    separada, ver deploy/docker-compose/postgres-init/).
+│   └── application/                     UsuariosServiceApplication + wiring (UseCasesConfig).
 ```
 
 La regla obligatoria de la guía se cumple explícitamente, **con una sola excepción
@@ -212,24 +217,24 @@ comando). Todo lo demás sigue el mismo patrón de Entrega 3: `trabajos-service`
 el tópico `trabajo-creado` de Pulsar; `integracion-service` y `notificaciones-service` lo
 consumen cada uno por su lado (fan-out, ver diagrama arriba) y publican
 `trabajo-siniestro-creado`/`notificacion-enviada` respectivamente. Son cuatro
-procesos/servicios Spring Boot independientes.
+procesos/servicios Spring Boot independientes, cada uno con su propio `application/`.
 
 ## Mapeo con las decisiones de diseño
 
 | Decisión de diseño | Dónde vive en el código |
 | --- | --- |
 | Seedwork (Entity, ValueObject, AggregateRoot, DomainEvent) — POJOs sin dependencia de framework | `domain` (duplicado por servicio a propósito - `trabajos-service` y `usuarios-service` lo tienen cada uno el suyo, no comparten módulo) |
-| Agregado raíz `Trabajo` con Factory (`Trabajo.crear(...)`) | `domain/model/trabajos-service` |
-| Agregado raíz `Usuario` con Factory (`Usuario.crear(...)`) | `domain/model/usuarios-service` |
+| Agregado raíz `Trabajo` con Factory (`Trabajo.crear(...)`) | `trabajos-service/domain/model` |
+| Agregado raíz `Usuario` con Factory (`Usuario.crear(...)`) | `usuarios-service/domain/model` |
 | Objeto de valor `Moneda` pensado para el escenario de modificabilidad 1.3 (nuevo país sin tocar el resto del agregado) | `domain` |
 | Arquitectura hexagonal: puertos (`TrabajoRepository`, `TrabajoEventPublisher`) en el dominio vs. adaptadores concretos | `domain` (puertos) + `infrastructure` (adaptadores) |
 | CQS: comando `CrearTrabajoCommand`/`CrearTrabajoUseCase` vs. consulta `ConsultarTrabajoUseCase` | `domain` y `.../consultartrabajo/` |
 | Evento de dominio `TrabajoCreado` (Avro) vs. evento de integración `TrabajoSiniestroCreado` (Avro, v1) — separación exigida por el escenario 3.3 | `eventos-shared` |
 | Escalabilidad (escenario 2.3): suscripción `Shared` de Pulsar en los consumidores de trabajo-creado, para poder correr varias instancias en paralelo — demo en vivo: sección "Levantarlo todo con Docker Compose" | `infrastructure` |
-| Persistencia real, mínima, con topología de datos descentralizada (una base Postgres por servicio, no una tabla compartida) | `backend/infrastructure/driven-adapters/r2dbc-postgresql/{trabajos,usuarios}-service/src/main/resources/schema.sql`, `backend/docker/postgres-init/` |
-| Modificabilidad (escenario 1.1): agregar un consumidor nuevo (`notificaciones-service`) sin tocar `trabajos-service` ni `integracion-service` - solo una suscripción `Shared` más sobre `trabajo-creado` | `backend/infrastructure/entry-points/pulsar-event-handler/notificaciones-service` |
-| Modificabilidad: puerto `EmailSender` generalizado a `CanalNotificacion`; se agrega `WhatsAppChannelAdapter` sin tocar `trabajos-service`, `integracion-service` ni `usuarios-service` | `backend/domain/model/notificaciones-service`, `backend/infrastructure/driven-adapters/canal-notificacion/notificaciones-service` |
-| Interoperabilidad: agregar un cuarto servicio (`usuarios-service`) la única comunicación nueva es una consulta HTTP síncrona explícita, no un comando. | `backend/infrastructure/driven-adapters/http-client/notificaciones-service` |
+| Persistencia real, mínima, con topología de datos descentralizada (una base Postgres por servicio, no una tabla compartida) | `backend/{trabajos,usuarios}-service/infrastructure/driven-adapters/r2dbc-postgresql/src/main/resources/schema.sql`, `deploy/docker-compose/postgres-init/` |
+| Modificabilidad (escenario 1.1): agregar un consumidor nuevo (`notificaciones-service`) sin tocar `trabajos-service` ni `integracion-service` - solo una suscripción `Shared` más sobre `trabajo-creado` | `backend/notificaciones/infrastructure/entry-points/pulsar-event-handler` |
+| Modificabilidad: puerto `EmailSender` generalizado a `CanalNotificacion`; se agrega `WhatsAppChannelAdapter` sin tocar `trabajos-service`, `integracion-service` ni `usuarios-service` | `backend/notificaciones/domain/model`, `backend/notificaciones/infrastructure/driven-adapters/canal-notificacion` |
+| Interoperabilidad: agregar un cuarto servicio (`usuarios-service`) la única comunicación nueva es una consulta HTTP síncrona explícita, no un comando. | `backend/notificaciones/infrastructure/driven-adapters/http-client` |
 | Puerto separado para la acción real ("enviar" la notificación) vs. el evento que solo registra que ya se envió - mismo principio hexagonal que `TrabajoRepository`/`TrabajoEventPublisher` en trabajos-service | `domain` |
 
 ## Versión de Spring Boot y de Gradle
@@ -323,21 +328,15 @@ El proyecto usa **Spring Boot 4.1.1**. Esa versión de su plugin de Gradle exige
    (Estos usan `docker exec` sobre el contenedor `hda-pulsar`, así que funcionan igual
    desde cualquier directorio.)
 
-3. Compilar los cuatro servicios. Los cuatro jars se generan en el mismo directorio
-   (`backend/applications/build/libs/`), así que **no uses `clean` entre servicio y
-   servicio**: borraría los jars ya generados de los otros tres. Compílalos todos de una
-   sola vez:
+3. Compilar los cuatro servicios. Cada uno es su propio módulo Gradle bootable (con su
+   propio classpath y su propio `build/libs/`), así que se pueden compilar juntos o por
+   separado sin que uno afecte al otro:
 
 ```shell
-./backend/gradlew -p backend :applications:bootJarTrabajos :applications:bootJarIntegracion :applications:bootJarNotificaciones :applications:bootJarUsuarios
+./backend/gradlew -p backend :trabajos-application:bootJar :integracion-application:bootJar :notificaciones-application:bootJar :usuarios-application:bootJar
 ```
 
-   (equivalente: `./backend/gradlew -p backend :applications:assemble`, que depende de las
-   cuatro tareas; o `cd backend && ./gradlew :applications:assemble`.)
-
-   Si en algún momento necesitas una compilación totalmente limpia, corre
-   `./backend/gradlew -p backend clean` **una sola vez** y luego el comando de arriba —
-   nunca `clean` por servicio.
+   (o compilar todo el proyecto de una vez: `./backend/gradlew -p backend build`.)
 
 3.1. Correr cada servicio (cada uno en su propia terminal):
     - `usuarios-service` (`com.hda.usuarios.UsuariosServiceApplication`) → puerto `8084`.
@@ -345,31 +344,31 @@ El proyecto usa **Spring Boot 4.1.1**. Esa versión de su plugin de Gradle exige
       contacto de cada cliente (único punto síncrono del sistema).
 
 ```shell
-java -jar backend/applications/build/libs/usuarios-service.jar
+java -jar backend/usuarios/application/build/libs/usuarios-service.jar
 ```
 
 - `trabajos-service` (`com.hda.trabajos.TrabajosServiceApplication`) → puerto `8081`.
 
 ```shell
-java -jar backend/applications/build/libs/trabajos-service.jar
+java -jar backend/trabajos/application/build/libs/trabajos-service.jar
 ```
 
 - `integracion-service` (`com.hda.integracion.IntegracionServiceApplication`) →
   puerto `8082`.
 
 ```shell
-java -jar backend/applications/build/libs/integracion-service.jar
+java -jar backend/integracion/application/build/libs/integracion-service.jar
 ```
 
 - `notificaciones-service` (`com.hda.notificaciones.NotificacionesServiceApplication`) →
   puerto `8083`.
 
 ```shell
-java -jar backend/applications/build/libs/notificaciones-service.jar
+java -jar backend/notificaciones/application/build/libs/notificaciones-service.jar
 ```
 
 4. `usuarios-service` viene con 3 usuarios semilla (UUID fijo, ver
-   `backend/infrastructure/driven-adapters/r2dbc-postgresql/usuarios-service/src/main/resources/usuarios/schema.sql`),
+   `backend/usuarios/infrastructure/driven-adapters/r2dbc-postgresql/src/main/resources/usuarios/schema.sql`),
    pensados justo para probar los 3 casos de canal:
 
    | `clienteId` | Canal |
@@ -491,15 +490,3 @@ docker exec -it hda-pulsar bin/pulsar-client consume persistent://hda/integracio
 docker exec -it hda-pulsar bin/pulsar-client consume persistent://hda/notificaciones/notificacion-enviada \
 -s watch-notificacion-enviada -n 0 -p Latest -st auto_consume
 ```
-
-## Actividades por integrante (Entrega 4)
-
-> **TODO (equipo):** completar esta tabla antes de entregar — falta el detalle de lo que
-> hizo cada integrante (Osmond: despliegue en AWS; Víctor: `frontend/`). No se completa
-> automáticamente aquí para no inventar actividades que no se verificaron.
-
-| Integrante | Actividades |
-| --- | --- |
-| Fernando | `usuarios-service` (nuevo, completo: dominio, caso de uso, API REST, persistencia R2DBC/Postgres en base propia `hda_usuarios`); refactor de `notificaciones-service` (puerto `EmailSender` → `CanalNotificacion`, `WhatsAppChannelAdapter`, cliente HTTP hacia `usuarios-service`); actualización de este README. |
-| Osmond | _pendiente completar_ — despliegue en AWS (punto 9 de la rúbrica). |
-| Víctor | _pendiente completar_ — `frontend/`. |

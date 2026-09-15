@@ -1,0 +1,72 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: hda-alb
+spec:
+  controllerName: gateway.k8s.aws/alb
+---
+apiVersion: gateway.k8s.aws/v1
+kind: LoadBalancerConfiguration
+metadata:
+  name: hda-gateway-lbconfig
+  namespace: hda
+spec:
+  scheme: internet-facing
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: hda-gateway
+  namespace: hda
+spec:
+  gatewayClassName: hda-alb
+  infrastructure:
+    parametersRef:
+      group: gateway.k8s.aws
+      kind: LoadBalancerConfiguration
+      name: hda-gateway-lbconfig
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+# targetType: ip -- trabajos-service es ClusterIP (sin NodePort); el default del LBC
+# ("instance") requeriria un NodePort. "ip" apunta directo a los pods via la ENI de VPC CNI.
+apiVersion: gateway.k8s.aws/v1
+kind: TargetGroupConfiguration
+metadata:
+  name: trabajos-service-tgconfig
+  namespace: hda
+spec:
+  targetReference:
+    name: trabajos-service
+  defaultConfiguration:
+    targetType: ip
+    # trabajos-service only maps POST /trabajos and GET /trabajos/{id} -- no root path, no
+    # actuator/health. The default healthcheck (GET / expecting 200-399) always 404s, so the
+    # target never goes healthy. Widen the matcher instead of adding an app-side health
+    # endpoint: any non-5xx response means the server itself is up and routing requests.
+    healthCheckConfig:
+      healthCheckPath: /
+      matcher:
+        httpCode: "200-499"
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: trabajos-service-route
+  namespace: hda
+spec:
+  parentRefs:
+    - name: hda-gateway
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /trabajos
+      backendRefs:
+        - name: trabajos-service
+          port: 8081
