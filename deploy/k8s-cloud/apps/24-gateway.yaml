@@ -45,10 +45,6 @@ spec:
     name: trabajos-service
   defaultConfiguration:
     targetType: ip
-    # trabajos-service only maps POST /trabajos and GET /trabajos/{id} -- no root path, no
-    # actuator/health. The default healthcheck (GET / expecting 200-399) always 404s, so the
-    # target never goes healthy. Widen the matcher instead of adding an app-side health
-    # endpoint: any non-5xx response means the server itself is up and routing requests.
     healthCheckConfig:
       healthCheckPath: /
       matcher:
@@ -70,3 +66,36 @@ spec:
       backendRefs:
         - name: trabajos-service
           port: 8081
+---
+
+apiVersion: gateway.k8s.aws/v1
+kind: TargetGroupConfiguration
+metadata:
+  name: usuarios-service-tgconfig
+  namespace: hda
+spec:
+  targetReference:
+    name: usuarios-service
+  defaultConfiguration:
+    targetType: ip
+    healthCheckConfig:
+      healthCheckPath: /
+      matcher:
+        httpCode: "200-499"
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: usuarios-service-route
+  namespace: hda
+spec:
+  parentRefs:
+    - name: hda-gateway
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /usuarios
+      backendRefs:
+        - name: usuarios-service
+          port: 8084
