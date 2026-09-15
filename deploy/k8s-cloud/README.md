@@ -55,10 +55,10 @@ que mas tarda).
 Una vez por cambio de codigo. Primero, build local:
 
 ```bash
-docker build -t hda/trabajos-service:local       --build-arg SERVICE_JAR=trabajos-service.jar       -f deploy/docker-compose/Dockerfile backend
-docker build -t hda/integracion-service:local    --build-arg SERVICE_JAR=integracion-service.jar    -f deploy/docker-compose/Dockerfile backend
-docker build -t hda/notificaciones-service:local --build-arg SERVICE_JAR=notificaciones-service.jar -f deploy/docker-compose/Dockerfile backend
-docker build -t hda/usuarios-service:local       --build-arg SERVICE_JAR=usuarios-service.jar       -f deploy/docker-compose/Dockerfile backend
+docker build -t hda/trabajos-service:local       --build-arg SERVICE=trabajos       -f deploy/docker-compose/Dockerfile backend
+docker build -t hda/integracion-service:local    --build-arg SERVICE=integracion    -f deploy/docker-compose/Dockerfile backend
+docker build -t hda/notificaciones-service:local --build-arg SERVICE=notificaciones -f deploy/docker-compose/Dockerfile backend
+docker build -t hda/usuarios-service:local       --build-arg SERVICE=usuarios       -f deploy/docker-compose/Dockerfile backend
 ```
 
 Despues, tag + push a ECR:
@@ -90,6 +90,39 @@ Esto: apunta `kubectl` al cluster (`aws eks update-kubeconfig`), renderiza los
 `__PLACEHOLDER__` (endpoints de RDS/ElastiCache, password de Postgres, URLs de imagen) desde
 `terraform output`, aplica `base/` → espera a Pulsar → aplica `apps/` → aplica
 `autoscaling/`, y al final imprime la URL del ALB.
+
+## Paso 3: actualizar una imagen
+
+Repetir el [Paso 1](#paso-1-imagenes-en-ecr).
+
+Asociar `kubectl` al cluster:
+
+```bash
+kubectl config current-context
+
+aws eks update-kubeconfig \
+  --name $(terraform -chdir=deploy/terraform output -raw eks_cluster_name) \
+  --region $(terraform -chdir=deploy/terraform output -raw aws_region) \
+  --profile <your-aws-profile>
+
+kubectl get nodes
+```
+
+Forzar un rollout para el servicio que haya cambiado:
+
+```bash
+kubectl rollout restart deployment/trabajos-service -n hda
+kubectl rollout restart deployment/integracion-service -n hda
+kubectl rollout restart deployment/notificaciones-service -n hda
+kubectl rollout restart deployment/usuarios-service -n hda
+```
+
+Eso recrea los Pods; `imagePullPolicy: Always` hace que el Kubelet vuelva a pedir `:latest`
+a ECR en ese momento (ahi si trae la version nueva). Verificar con:
+
+```bash
+kubectl rollout status deployment/trabajos-service -n hda
+```
 
 ## Verificar
 

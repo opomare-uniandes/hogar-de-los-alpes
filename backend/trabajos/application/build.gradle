@@ -1,0 +1,17 @@
+apply plugin: 'org.springframework.boot'
+
+dependencies {
+    implementation project(':trabajos-model')
+    implementation project(':trabajos-usecase')
+    implementation project(':trabajos-reactive-web')
+    implementation project(':trabajos-r2dbc-postgresql')
+    implementation project(':trabajos-pulsar-event-bus')
+
+    implementation 'org.springframework.boot:spring-boot-starter' // @SpringBootApplication
+    implementation 'org.apache.pulsar:pulsar-client-api' // PulsarConfig expone el bean PulsarClient
+    implementation 'org.springframework.boot:spring-boot-r2dbc' // spring.sql.init.mode: always
+}
+
+bootJar {
+    archiveFileName = 'trabajos-service.jar'
+}

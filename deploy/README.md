@@ -37,7 +37,7 @@ deploy/
 ## Parametrizacion (comun a los tres flujos)
 
 Los servicios ya no tienen hosts/credenciales hardcodeados: leen variables de entorno con
-valores por defecto para desarrollo local (ver `backend/applications/src/main/resources/application-*.yml`).
+valores por defecto para desarrollo local (ver `backend/<servicio>/application/src/main/resources/application.yml`).
 
 | Variable | Uso | Default |
 | --- | --- | --- |
