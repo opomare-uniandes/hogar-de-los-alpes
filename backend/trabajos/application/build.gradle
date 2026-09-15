@@ -6,6 +6,7 @@ dependencies {
     implementation project(':trabajos-reactive-web')
     implementation project(':trabajos-r2dbc-postgresql')
     implementation project(':trabajos-pulsar-event-bus')
+    implementation project(':trabajos-pulsar-command-handler')
 
     implementation 'org.springframework.boot:spring-boot-starter' // @SpringBootApplication
     implementation 'org.apache.pulsar:pulsar-client-api' // PulsarConfig expone el bean PulsarClient

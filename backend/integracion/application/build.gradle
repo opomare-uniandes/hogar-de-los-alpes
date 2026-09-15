@@ -1,6 +1,7 @@
 apply plugin: 'org.springframework.boot'
 
 dependencies {
+    implementation project(':eventos-shared')
     implementation project(':integracion-model')
     implementation project(':integracion-usecase')
     implementation project(':integracion-pulsar-event-handler')

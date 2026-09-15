@@ -17,6 +17,8 @@ hda:
     service-url: ${PULSAR_SERVICE_URL:pulsar://localhost:6650}
     admin-url: ${PULSAR_ADMIN_URL:http://localhost:8080}
     topic-trabajo-creado: persistent://hda/trabajos/trabajo-creado
+    topic-crear-trabajo-command: persistent://hda/trabajos/crear-trabajo-command
+    subscription-crear-trabajo-command: trabajos-crear-command-sub
 
 logging:
   level:

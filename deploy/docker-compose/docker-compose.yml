@@ -63,6 +63,7 @@ services:
         bin/pulsar-admin --admin-url http://pulsar:8080 namespaces create hda/trabajos || true
         bin/pulsar-admin --admin-url http://pulsar:8080 namespaces create hda/integracion || true
         bin/pulsar-admin --admin-url http://pulsar:8080 namespaces create hda/notificaciones || true
+        bin/pulsar-admin --admin-url http://pulsar:8080 namespaces create hda/partner || true
         echo "Tenant/namespaces hda listos."
 
   redis:
@@ -119,6 +120,9 @@ services:
       REDIS_PORT: 6379
       PULSAR_SERVICE_URL: pulsar://pulsar:6650
       PULSAR_ADMIN_URL: http://pulsar:8080
+      # Solo para la evidencia reproducible del escenario de interoperabilidad V1/V2.
+      # Mantener en false durante las ejecuciones normales.
+      HDA_DEMO_PARTNER_ENABLED: ${HDA_DEMO_PARTNER_ENABLED:-false}
     ports:
       - "8082:8082"
 

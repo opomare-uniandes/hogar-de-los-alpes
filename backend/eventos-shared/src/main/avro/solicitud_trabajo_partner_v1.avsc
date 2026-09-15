@@ -1,0 +1,18 @@
+{
+  "type": "record",
+  "name": "SolicitudTrabajoPartnerV1",
+  "namespace": "com.hda.eventos.partner.v1",
+  "doc": "Contrato de integracion V1 de partners B2B2C. Su vocabulario externo se traduce dentro de integracion-service.",
+  "fields": [
+    {"name": "id", "type": "string"},
+    {"name": "correlationId", "type": "string"},
+    {"name": "partnerCode", "type": "string"},
+    {"name": "requestNumber", "type": "string"},
+    {"name": "insuredCustomerId", "type": "string"},
+    {"name": "assistanceCode", "type": "string"},
+    {"name": "priorityCode", "type": "string"},
+    {"name": "cityCode", "type": "string"},
+    {"name": "currencyCode", "type": "string", "default": "COP"},
+    {"name": "requestedAt", "type": {"type": "long", "logicalType": "timestamp-millis"}}
+  ]
+}

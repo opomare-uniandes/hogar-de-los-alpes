@@ -15,7 +15,13 @@ hda:
     admin-url: ${PULSAR_ADMIN_URL:http://localhost:8080}
     topic-trabajo-creado: persistent://hda/trabajos/trabajo-creado
     topic-trabajo-siniestro-creado: persistent://hda/integracion/trabajo-siniestro-creado
+    topic-solicitud-partner-v1: persistent://hda/partner/solicitud-trabajo-v1
+    topic-solicitud-partner-v2: persistent://hda/partner/solicitud-trabajo-v2
+    topic-crear-trabajo-command: persistent://hda/trabajos/crear-trabajo-command
+    topic-solicitud-partner-rechazada: persistent://hda/partner/solicitud-trabajo-rechazada-v1
     subscription: integracion-service-sub
+    subscription-partner-v1: integracion-partner-v1-sub
+    subscription-partner-v2: integracion-partner-v2-sub
   idempotencia:
     ttl: PT24H
 
