@@ -1,0 +1,11 @@
+# Copy to sandbox.auto.tfvars (gitignored, auto-loaded by Terraform - no -var-file needed)
+# and fill in the real values for your account. Never commit sandbox.auto.tfvars itself.
+
+aws_profile = "<your AWS CLI SSO profile name>"
+
+# Optional: reuse an existing, unassociated EIP for the NAT gateway. Leave unset / null to let Terraform allocate a new one.
+# nat_eip_allocation_id = "eipalloc-xxxxxxxxxxxxxxxxx"
+
+# Optional: only needed if your account enforces a landing-zone IAM permissions boundary
+# guardrail. Leave unset / null otherwise.
+# iam_permissions_boundary_arn = "arn:aws:iam::<account-id>:policy/<boundary-policy-name>"

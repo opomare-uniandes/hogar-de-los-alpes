@@ -1,0 +1,14 @@
+# Terraform local state and execution artifacts
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# tfvars that might carry secrets (the PoC's terraform.tfvars has none; in case more are added)
+*.auto.tfvars
+secrets.tfvars

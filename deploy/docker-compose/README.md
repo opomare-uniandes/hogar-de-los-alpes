@@ -9,7 +9,7 @@ solo comando. Pensado para pruebas rapidas locales. Para autoescalado, ver
 ```
 docker-compose/
 ├── docker-compose.yml    Infra + pulsar-init (one-shot) + 4 servicios
-├── Dockerfile            Imagen compartida por los 4 servicios (selecciona el jar via SERVICE_JAR)
+├── Dockerfile            Compartido por los 4 servicios; cada uno es su propio modulo Gradle (arg SERVICE)
 ├── .env.example          Plantilla de variables (copiar a .env)
 └── postgres-init/        Script que crea la base hda_usuarios en el primer arranque
 ```

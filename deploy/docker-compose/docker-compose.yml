@@ -76,14 +76,14 @@ services:
       - redisdata:/data
 
   # --- Los 4 servicios Spring Boot ---
-  # Comparten la misma imagen (el jar se selecciona por SPRING_CONFIG_NAME/main class del jar).
-  # Cada uno se construye con su BootJar; aqui se usa el jar ya empaquetado via Dockerfile.
+  # Comparten el mismo Dockerfile; cada uno es su propio modulo Gradle bootable
+  # (arg SERVICE selecciona cual: trabajos/integracion/notificaciones/usuarios).
   trabajos-service:
     build:
       context: ../../backend
       dockerfile: ../deploy/docker-compose/Dockerfile
       args:
-        SERVICE_JAR: trabajos-service.jar
+        SERVICE: trabajos
     image: hda/trabajos-service:local
     container_name: hda-trabajos
     depends_on:
@@ -107,7 +107,7 @@ services:
       context: ../../backend
       dockerfile: ../deploy/docker-compose/Dockerfile
       args:
-        SERVICE_JAR: integracion-service.jar
+        SERVICE: integracion
     image: hda/integracion-service:local
     container_name: hda-integracion
     depends_on:
@@ -131,7 +131,7 @@ services:
       context: ../../backend
       dockerfile: ../deploy/docker-compose/Dockerfile
       args:
-        SERVICE_JAR: notificaciones-service.jar
+        SERVICE: notificaciones
     image: hda/notificaciones-service:local
     container_name: hda-notificaciones
     depends_on:
@@ -155,7 +155,7 @@ services:
       context: ../../backend
       dockerfile: ../deploy/docker-compose/Dockerfile
       args:
-        SERVICE_JAR: usuarios-service.jar
+        SERVICE: usuarios
     image: hda/usuarios-service:local
     container_name: hda-usuarios
     depends_on:

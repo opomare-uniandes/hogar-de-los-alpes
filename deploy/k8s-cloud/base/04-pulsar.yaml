@@ -1,0 +1,117 @@
+# Pulsar standalone (bus de eventos), igual que local pero con volumen EBS persistente
+# (gp3, via el StorageClass de 02-storageclass.yaml) montado en /pulsar/data, donde
+# `bin/pulsar standalone` guarda tanto los datos de ZooKeeper como los ledgers de BookKeeper.
+# Deployment + Recreate (no StatefulSet): un solo pod, mismo patron que postgres en local/base.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pulsar-data
+  namespace: hda
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: gp3
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pulsar
+  namespace: hda
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: pulsar
+  template:
+    metadata:
+      labels:
+        app: pulsar
+    spec:
+      # A fresh EBS volume mounts as root:root; the pulsar image runs as uid=10000 gid=0
+      # and can't write to it without this. Local dev never hits this: Pulsar has no PVC there.
+      securityContext:
+        fsGroup: 0
+      containers:
+        - name: pulsar
+          image: apachepulsar/pulsar:4.2.4
+          command: ["bin/pulsar", "standalone"]
+          ports:
+            - containerPort: 6650
+              name: broker
+            - containerPort: 8080
+              name: admin
+          env:
+            - name: PULSAR_PREFIX_advertisedAddress
+              value: "pulsar"
+            - name: PULSAR_MEM
+              value: "-Xms512m -Xmx1g"
+          volumeMounts:
+            - name: data
+              mountPath: /pulsar/data
+          readinessProbe:
+            httpGet:
+              path: /admin/v2/namespaces/public/default
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "1"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: pulsar-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pulsar
+  namespace: hda
+spec:
+  selector:
+    app: pulsar
+  ports:
+    - name: broker
+      port: 6650
+      targetPort: 6650
+    - name: admin
+      port: 8080
+      targetPort: 8080
+---
+# Crea el tenant "hda" y los namespaces (trabajos/integracion/notificaciones), igual que local.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pulsar-bootstrap
+  namespace: hda
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: bootstrap
+          image: apachepulsar/pulsar:4.2.4
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              ADMIN=http://pulsar:8080
+              echo "Esperando a Pulsar admin en $ADMIN ..."
+              until curl -sf "$ADMIN/admin/v2/clusters" >/dev/null; do sleep 5; done
+              bin/pulsar-admin --admin-url "$ADMIN" tenants create hda || true
+              bin/pulsar-admin --admin-url "$ADMIN" namespaces create hda/trabajos || true
+              bin/pulsar-admin --admin-url "$ADMIN" namespaces create hda/integracion || true
+              bin/pulsar-admin --admin-url "$ADMIN" namespaces create hda/notificaciones || true
+              echo "Tenant/namespaces listos."

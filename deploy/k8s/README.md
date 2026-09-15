@@ -52,10 +52,10 @@ helm repo add kedacore https://kedacore.github.io/charts && helm repo update
 helm install keda kedacore/keda --namespace keda --create-namespace
 
 # 3. Construir imagenes (una por servicio, mismo Dockerfile) y cargarlas al cluster
-docker build -t hda/trabajos-service:local       --build-arg SERVICE_JAR=trabajos-service.jar       -f deploy/docker-compose/Dockerfile backend
-docker build -t hda/integracion-service:local    --build-arg SERVICE_JAR=integracion-service.jar    -f deploy/docker-compose/Dockerfile backend
-docker build -t hda/notificaciones-service:local --build-arg SERVICE_JAR=notificaciones-service.jar -f deploy/docker-compose/Dockerfile backend
-docker build -t hda/usuarios-service:local       --build-arg SERVICE_JAR=usuarios-service.jar       -f deploy/docker-compose/Dockerfile backend
+docker build -t hda/trabajos-service:local       --build-arg SERVICE=trabajos       -f deploy/docker-compose/Dockerfile backend
+docker build -t hda/integracion-service:local    --build-arg SERVICE=integracion    -f deploy/docker-compose/Dockerfile backend
+docker build -t hda/notificaciones-service:local --build-arg SERVICE=notificaciones -f deploy/docker-compose/Dockerfile backend
+docker build -t hda/usuarios-service:local       --build-arg SERVICE=usuarios       -f deploy/docker-compose/Dockerfile backend
 
 kind load docker-image hda/trabajos-service:local       --name hda
 kind load docker-image hda/integracion-service:local    --name hda
@@ -73,8 +73,9 @@ kubectl get pods -n hda
 kubectl get scaledobject -n hda
 ```
 
-> El `Dockerfile` vive en `deploy/docker-compose/` y lo comparten ambos flujos: construye
-> los 4 jars y selecciona cual queda como `application.jar` via el arg `SERVICE_JAR`.
+> El `Dockerfile` vive en `deploy/docker-compose/` y lo comparten ambos flujos: cada
+> servicio es su propio modulo Gradle bootable, seleccionado via el arg `SERVICE`
+> (trabajos/integracion/notificaciones/usuarios).
 
 ## Probar el autoescalado
 
@@ -126,10 +127,10 @@ helm repo add kedacore https://kedacore.github.io/charts && helm repo update
 helm install keda kedacore/keda --namespace keda --create-namespace
 
 # 3. Construir imagenes y cargarlas en la VM
-docker build -t hda/trabajos-service:local       --build-arg SERVICE_JAR=trabajos-service.jar       -f deploy/docker-compose/Dockerfile backend
-docker build -t hda/integracion-service:local    --build-arg SERVICE_JAR=integracion-service.jar    -f deploy/docker-compose/Dockerfile backend
-docker build -t hda/notificaciones-service:local --build-arg SERVICE_JAR=notificaciones-service.jar -f deploy/docker-compose/Dockerfile backend
-docker build -t hda/usuarios-service:local       --build-arg SERVICE_JAR=usuarios-service.jar       -f deploy/docker-compose/Dockerfile backend
+docker build -t hda/trabajos-service:local       --build-arg SERVICE=trabajos       -f deploy/docker-compose/Dockerfile backend
+docker build -t hda/integracion-service:local    --build-arg SERVICE=integracion    -f deploy/docker-compose/Dockerfile backend
+docker build -t hda/notificaciones-service:local --build-arg SERVICE=notificaciones -f deploy/docker-compose/Dockerfile backend
+docker build -t hda/usuarios-service:local       --build-arg SERVICE=usuarios       -f deploy/docker-compose/Dockerfile backend
 
 minikube image load hda/trabajos-service:local       -p hda
 minikube image load hda/integracion-service:local    -p hda

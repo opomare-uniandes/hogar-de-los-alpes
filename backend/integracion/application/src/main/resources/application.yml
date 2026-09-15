@@ -1,0 +1,77 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: integracion-service
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+hda:
+  pulsar:
+    service-url: ${PULSAR_SERVICE_URL:pulsar://localhost:6650}
+    admin-url: ${PULSAR_ADMIN_URL:http://localhost:8080}
+    topic-trabajo-creado: persistent://hda/trabajos/trabajo-creado
+    topic-trabajo-siniestro-creado: persistent://hda/integracion/trabajo-siniestro-creado
+    topic-solicitud-partner-v1: persistent://hda/partner/solicitud-trabajo-v1
+    topic-solicitud-partner-v2: persistent://hda/partner/solicitud-trabajo-v2
+    topic-crear-trabajo-command: persistent://hda/trabajos/crear-trabajo-command
+    topic-solicitud-partner-rechazada: persistent://hda/partner/solicitud-trabajo-rechazada-v1
+    subscription: integracion-service-sub
+    subscription-partner-v1: integracion-partner-v1-sub
+    subscription-partner-v2: integracion-partner-v2-sub
+  idempotencia:
+    ttl: PT24H
+
+logging:
+  level:
+    org.apache.pulsar.client.impl.ProducerStatsRecorderImpl: WARN
+    org.apache.pulsar.client.impl.ConsumerStatsRecorderImpl: WARN
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health, metrics"
+
+  endpoint:
+    health:
+      probes:
+        enabled: false
+      show-details: "always"
+
+  observations:
+    annotations:
+      enabled: true
+
+  otlp:
+    metrics:
+      export:
+        enabled: "${OTEL_COLLECTOR_ENABLED:false}"
+        url: "${OTEL_COLLECTOR_HOST:http://localhost:4018}/v1/metrics"
+        step: "${OTEL_COLLECTOR_STEP:1m}"
+        headers:
+          Authorization: "Basic "
+  metrics:
+    enable:
+      all: "${METRICS_ENABLE_ALL:true}"
+
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: "${OTEL_COLLECTOR_HOST:http://localhost:4018}/v1/traces"
+          compression: "gzip"
+          headers:
+            Authorization: "Basic "
+
+    resource-attributes:
+      service.name: "${SERVICE_NAME:integracion}"
+
+  tracing:
+    export:
+      enabled: "${OTEL_TRACING_ENABLED:false}"
+    sampling:
+      probability: "${OTEL_TRACING_SAMPLING:1.0}"

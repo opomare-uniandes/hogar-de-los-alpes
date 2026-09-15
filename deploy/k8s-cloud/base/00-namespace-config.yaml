@@ -1,0 +1,24 @@
+# Namespace y configuracion comun (no-secreta) para el stack en la nube.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hda
+---
+# Endpoints. Postgres/Redis apuntan a RDS/ElastiCache (no hay Deployment local para ellos);
+# Pulsar sigue in-cluster con su Service de siempre. __RDS_ENDPOINT__/__REDIS_ENDPOINT__ los
+# sustituye apply.sh con los outputs de Terraform.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hda-endpoints
+  namespace: hda
+data:
+  POSTGRES_HOST: "__RDS_ENDPOINT__"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "hda_trabajos"
+  POSTGRES_USUARIOS_DB: "hda_usuarios"
+  REDIS_HOST: "__REDIS_ENDPOINT__"
+  REDIS_PORT: "6379"
+  PULSAR_SERVICE_URL: "pulsar://pulsar:6650"
+  PULSAR_ADMIN_URL: "http://pulsar:8080"
+  USUARIOS_SERVICE_BASE_URL: "http://usuarios-service:8084"

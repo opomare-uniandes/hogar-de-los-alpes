@@ -2,71 +2,80 @@ rootProject.name = 'hogar-de-los-alpes'
 
 include 'eventos-shared'
 
-include ':applications'
-project(':applications').projectDir = file('applications')
+include ':trabajos-application'
+project(':trabajos-application').projectDir = file('trabajos/application')
+
+include ':integracion-application'
+project(':integracion-application').projectDir = file('integracion/application')
+
+include ':notificaciones-application'
+project(':notificaciones-application').projectDir = file('notificaciones/application')
+
+include ':usuarios-application'
+project(':usuarios-application').projectDir = file('usuarios/application')
 
 include ':trabajos-model'
-project(':trabajos-model').projectDir = file('domain/model/trabajos-service')
+project(':trabajos-model').projectDir = file('trabajos/domain/model')
 
 include ':trabajos-usecase'
-project(':trabajos-usecase').projectDir = file('domain/usecase/trabajos-service')
+project(':trabajos-usecase').projectDir = file('trabajos/domain/usecase')
 
 include ':trabajos-reactive-web'
-project(':trabajos-reactive-web').projectDir = file('infrastructure/entry-points/reactive-web/trabajos-service')
+project(':trabajos-reactive-web').projectDir = file('trabajos/infrastructure/entry-points/reactive-web')
 
 include ':trabajos-r2dbc-postgresql'
-project(':trabajos-r2dbc-postgresql').projectDir = file('infrastructure/driven-adapters/r2dbc-postgresql/trabajos-service')
+project(':trabajos-r2dbc-postgresql').projectDir = file('trabajos/infrastructure/driven-adapters/r2dbc-postgresql')
 
 include ':trabajos-pulsar-event-bus'
-project(':trabajos-pulsar-event-bus').projectDir = file('infrastructure/driven-adapters/pulsar-event-bus/trabajos-service')
+project(':trabajos-pulsar-event-bus').projectDir = file('trabajos/infrastructure/driven-adapters/pulsar-event-bus')
 
 include ':trabajos-pulsar-command-handler'
-project(':trabajos-pulsar-command-handler').projectDir = file('infrastructure/entry-points/pulsar-command-handler/trabajos-service')
+project(':trabajos-pulsar-command-handler').projectDir = file('trabajos/infrastructure/entry-points/pulsar-command-handler')
 
 include ':integracion-model'
-project(':integracion-model').projectDir = file('domain/model/integracion-service')
+project(':integracion-model').projectDir = file('integracion/domain/model')
 
 include ':integracion-usecase'
-project(':integracion-usecase').projectDir = file('domain/usecase/integracion-service')
+project(':integracion-usecase').projectDir = file('integracion/domain/usecase')
 
 include ':integracion-pulsar-event-handler'
-project(':integracion-pulsar-event-handler').projectDir = file('infrastructure/entry-points/pulsar-event-handler/integracion-service')
+project(':integracion-pulsar-event-handler').projectDir = file('integracion/infrastructure/entry-points/pulsar-event-handler')
 
 include ':integracion-pulsar-event-bus'
-project(':integracion-pulsar-event-bus').projectDir = file('infrastructure/driven-adapters/pulsar-event-bus/integracion-service')
+project(':integracion-pulsar-event-bus').projectDir = file('integracion/infrastructure/driven-adapters/pulsar-event-bus')
 
 include ':integracion-redis-idempotency'
-project(':integracion-redis-idempotency').projectDir = file('infrastructure/driven-adapters/redis-idempotency/integracion-service')
+project(':integracion-redis-idempotency').projectDir = file('integracion/infrastructure/driven-adapters/redis-idempotency')
 
 include ':notificaciones-model'
-project(':notificaciones-model').projectDir = file('domain/model/notificaciones-service')
+project(':notificaciones-model').projectDir = file('notificaciones/domain/model')
 
 include ':notificaciones-usecase'
-project(':notificaciones-usecase').projectDir = file('domain/usecase/notificaciones-service')
+project(':notificaciones-usecase').projectDir = file('notificaciones/domain/usecase')
 
 include ':notificaciones-pulsar-event-handler'
-project(':notificaciones-pulsar-event-handler').projectDir = file('infrastructure/entry-points/pulsar-event-handler/notificaciones-service')
+project(':notificaciones-pulsar-event-handler').projectDir = file('notificaciones/infrastructure/entry-points/pulsar-event-handler')
 
 include ':notificaciones-pulsar-event-bus'
-project(':notificaciones-pulsar-event-bus').projectDir = file('infrastructure/driven-adapters/pulsar-event-bus/notificaciones-service')
+project(':notificaciones-pulsar-event-bus').projectDir = file('notificaciones/infrastructure/driven-adapters/pulsar-event-bus')
 
 include ':notificaciones-canal-notificacion'
-project(':notificaciones-canal-notificacion').projectDir = file('infrastructure/driven-adapters/canal-notificacion/notificaciones-service')
+project(':notificaciones-canal-notificacion').projectDir = file('notificaciones/infrastructure/driven-adapters/canal-notificacion')
 
 include ':notificaciones-usuarios-client'
-project(':notificaciones-usuarios-client').projectDir = file('infrastructure/driven-adapters/http-client/notificaciones-service')
+project(':notificaciones-usuarios-client').projectDir = file('notificaciones/infrastructure/driven-adapters/http-client')
 
 include ':notificaciones-redis-idempotency'
-project(':notificaciones-redis-idempotency').projectDir = file('infrastructure/driven-adapters/redis-idempotency/notificaciones-service')
+project(':notificaciones-redis-idempotency').projectDir = file('notificaciones/infrastructure/driven-adapters/redis-idempotency')
 
 include ':usuarios-model'
-project(':usuarios-model').projectDir = file('domain/model/usuarios-service')
+project(':usuarios-model').projectDir = file('usuarios/domain/model')
 
 include ':usuarios-usecase'
-project(':usuarios-usecase').projectDir = file('domain/usecase/usuarios-service')
+project(':usuarios-usecase').projectDir = file('usuarios/domain/usecase')
 
 include ':usuarios-reactive-web'
-project(':usuarios-reactive-web').projectDir = file('infrastructure/entry-points/reactive-web/usuarios-service')
+project(':usuarios-reactive-web').projectDir = file('usuarios/infrastructure/entry-points/reactive-web')
 
 include ':usuarios-r2dbc-postgresql'
-project(':usuarios-r2dbc-postgresql').projectDir = file('infrastructure/driven-adapters/r2dbc-postgresql/usuarios-service')
+project(':usuarios-r2dbc-postgresql').projectDir = file('usuarios/infrastructure/driven-adapters/r2dbc-postgresql')

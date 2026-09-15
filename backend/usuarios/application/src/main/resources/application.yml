@@ -1,0 +1,59 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: usuarios-service
+  r2dbc:
+    url: r2dbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_USUARIOS_DB:hda_usuarios}
+    username: ${POSTGRES_USER:hda}
+    password: ${POSTGRES_PASSWORD:changeit}
+  sql:
+    init:
+      mode: always   # ejecuta schema.sql al arrancar (crea la tabla y siembra los 3 usuarios si no existen)
+      schema-locations: classpath:usuarios/schema.sql
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health, metrics"
+
+  endpoint:
+    health:
+      probes:
+        enabled: false
+      show-details: "always"
+
+  observations:
+    annotations:
+      enabled: true
+
+  otlp:
+    metrics:
+      export:
+        enabled: "${OTEL_COLLECTOR_ENABLED:false}"
+        url: "${OTEL_COLLECTOR_HOST:http://localhost:4018}/v1/metrics"
+        step: "${OTEL_COLLECTOR_STEP:1m}"
+        headers:
+          Authorization: "Basic "
+  metrics:
+    enable:
+      all: "${METRICS_ENABLE_ALL:true}"
+
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: "${OTEL_COLLECTOR_HOST:http://localhost:4018}/v1/traces"
+          compression: "gzip"
+          headers:
+            Authorization: "Basic "
+
+    resource-attributes:
+      service.name: "${SERVICE_NAME:usuarios}"
+
+  tracing:
+    export:
+      enabled: "${OTEL_TRACING_ENABLED:false}"
+    sampling:
+      probability: "${OTEL_TRACING_SAMPLING:1.0}"
