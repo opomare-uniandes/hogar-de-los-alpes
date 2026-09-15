@@ -1,5 +1,6 @@
 package com.hda.notificaciones.config;
 
+import io.opentelemetry.api.OpenTelemetry;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.PulsarClientException;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,10 +18,12 @@ import org.springframework.context.annotation.Configuration;
 public class PulsarClientConfig {
 
     @Bean(destroyMethod = "close")
-    public PulsarClient pulsarClient(@Value("${hda.pulsar.service-url}") String serviceUrl)
+    public PulsarClient pulsarClient(@Value("${hda.pulsar.service-url}") String serviceUrl, OpenTelemetry openTelemetry)
             throws PulsarClientException {
         return PulsarClient.builder()
                 .serviceUrl(serviceUrl)
+                .openTelemetry(openTelemetry)
+                .enableTracing(true)
                 .build();
     }
 }
