@@ -20,6 +20,15 @@ hda:
     topic-crear-trabajo-command: persistent://hda/trabajos/crear-trabajo-command
     subscription-crear-trabajo-command: trabajos-crear-command-sub
 
+    # Saga "Asignacion de trabajo con proveedor" (trabajo-saga-service es quien publica los
+    # comandos y consume estos eventos - mismas cadenas que en su application.yml).
+    topic-trabajo-asignado: persistent://hda/trabajos/trabajo-asignado
+    topic-trabajo-cancelado: persistent://hda/trabajos/trabajo-cancelado
+    topic-asignar-trabajo-command: persistent://hda/trabajos/asignar-trabajo-command
+    subscription-asignar-trabajo-command: trabajos-asignar-command-sub
+    topic-cancelar-trabajo-command: persistent://hda/trabajos/cancelar-trabajo-command
+    subscription-cancelar-trabajo-command: trabajos-cancelar-command-sub
+
 logging:
   level:
     org.apache.pulsar.client.impl.ProducerStatsRecorderImpl: WARN

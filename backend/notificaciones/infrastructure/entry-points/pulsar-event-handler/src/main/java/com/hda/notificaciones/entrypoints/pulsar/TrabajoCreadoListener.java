@@ -75,7 +75,11 @@ public class TrabajoCreadoListener {
                         // duplicado: se hizo ack para no reprocesar; no se ejecuta el caso de uso.
                         return Mono.<Void>empty();
                     }
-                    return enviarNotificacionUseCase.ejecutar(eventoDominio);
+                    // Si el procesamiento falla DESPUES de marcar visto, hay que olvidarlo: sin
+                    // esto, la redelivery de Pulsar encontraria el id ya marcado y lo saltaria
+                    // como "duplicado" sin haber completado nunca el envio real.
+                    return enviarNotificacionUseCase.ejecutar(eventoDominio)
+                            .onErrorResume(err -> deduplicationStore.olvidar(eventoDominio.id()).then(Mono.error(err)));
                 })
                 .doOnSuccess(v -> c.acknowledgeAsync(mensaje))
                 .doOnError(err -> c.negativeAcknowledge(mensaje))

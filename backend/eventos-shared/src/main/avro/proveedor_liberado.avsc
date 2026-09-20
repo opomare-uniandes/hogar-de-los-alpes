@@ -1,0 +1,10 @@
+{
+  "type": "record",
+  "name": "ProveedorLiberado",
+  "namespace": "com.hda.eventos.proveedor",
+  "doc": "Evento publicado por proveedor-service hacia trabajo-saga-service: resultado de LiberarProveedorCommandV1 (compensacion tardia, no ejercitada por el camino de fallo de esta entrega pero implementada de verdad).",
+  "fields": [
+    {"name": "sagaId", "type": "string"},
+    {"name": "proveedorId", "type": "string"}
+  ]
+}

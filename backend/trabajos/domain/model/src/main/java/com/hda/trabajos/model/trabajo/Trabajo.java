@@ -69,6 +69,22 @@ public class Trabajo extends AggregateRoot<UUID> {
                 moneda, estado, fechaCreacion);
     }
 
+    /** Paso ASIGNAR_TRABAJO de la saga "Asignacion de trabajo con proveedor" (seccion 6.1 del
+     * plan). No-op si ya esta ASIGNADO o CANCELADO - protege el invariante del propio agregado,
+     * sin necesidad de un store de idempotencia externo (ver seccion 3 del plan). */
+    public void asignar(UUID sagaId) {
+        if (estado == EstadoTrabajo.ASIGNADO || estado == EstadoTrabajo.CANCELADO) return;
+        this.estado = EstadoTrabajo.ASIGNADO;
+        registrarEvento(new TrabajoAsignadoDomainEvent(UUID.randomUUID(), getId(), sagaId, Instant.now()));
+    }
+
+    /** Compensacion (COMPENSAR_CANCELAR_TRABAJO) de la misma saga. No-op si ya esta CANCELADO. */
+    public void cancelar(UUID sagaId) {
+        if (estado == EstadoTrabajo.CANCELADO) return;
+        this.estado = EstadoTrabajo.CANCELADO;
+        registrarEvento(new TrabajoCanceladoDomainEvent(UUID.randomUUID(), getId(), sagaId, Instant.now()));
+    }
+
     public UUID getClienteId() { return clienteId; }
     public CategoriaServicio getCategoriaServicio() { return categoriaServicio; }
     public Urgencia getUrgencia() { return urgencia; }

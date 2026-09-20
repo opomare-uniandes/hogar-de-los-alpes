@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "ProveedorReservado",
+  "namespace": "com.hda.eventos.proveedor",
+  "doc": "Evento publicado por proveedor-service hacia trabajo-saga-service: resultado OK de ReservarProveedorCommandV1 (camino feliz de la saga 'Asignacion de trabajo con proveedor').",
+  "fields": [
+    {"name": "sagaId", "type": "string"},
+    {"name": "trabajoId", "type": "string"},
+    {"name": "proveedorId", "type": "string"},
+    {"name": "nombreProveedor", "type": "string"}
+  ]
+}

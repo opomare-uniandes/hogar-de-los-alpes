@@ -1,10 +1,17 @@
 # Hogar de los Alpes — Backend de microservicios
 
-Proyecto multi-módulo Gradle (Java 25) que implementa una porción mínima de 4 agregados
-(`Trabajo`, `Usuario`, y los traductores de `integracion-service`/`notificaciones-service`),
-siguiendo DDD táctico y arquitectura hexagonal, con **Spring Boot WebFlux** (reactivo),
-**Apache Pulsar + Avro** como bus de eventos, y **una sola excepción síncrona explícita**
-(`notificaciones-service → usuarios-service` por HTTP, una consulta de solo lectura).
+Proyecto multi-módulo Gradle (Java 25) que implementa una porción mínima de varios
+agregados (`Trabajo`, `Usuario`, `Proveedor`, `SagaTrabajo`, y los traductores de
+`integracion-service`/`notificaciones-service`), siguiendo DDD táctico y arquitectura
+hexagonal, con **Spring Boot WebFlux** (reactivo), **Apache Pulsar + Avro** como bus de
+eventos, y **una sola excepción síncrona explícita** (`notificaciones-service →
+usuarios-service` por HTTP, una consulta de solo lectura).
+
+Desde la Entrega 5, el sistema son **6 servicios**: los 4 de la Entrega 4
+(`trabajos`/`integracion`/`notificaciones`/`usuarios`) más `proveedor-service` y
+`trabajo-saga-service`, que implementan la saga de **orquestación** "Asignación de
+trabajo con proveedor" (ver sección [Saga: "Asignación de trabajo con
+proveedor"](#saga-asignación-de-trabajo-con-proveedor) más abajo).
 
 ## Portal web
 
@@ -31,19 +38,26 @@ graph LR
     Externos(["Partners externos<br/>(p. ej. Seguros de los Alpes)"])
     Email(["Email (simulado)"])
     WhatsApp(["WhatsApp (simulado)"])
+    Tutor(["Tutor / API consumer"])
 
     Trabajos["trabajos-service :8081<br/>REST · WebFlux"]
     Integracion["integracion-service :8082"]
     Notificaciones["notificaciones-service :8083"]
     Usuarios["usuarios-service :8084<br/>REST · WebFlux"]
+    Proveedor["proveedor-service :8085"]
+    TrabajoSaga["trabajo-saga-service :8086<br/>REST · WebFlux (Saga Log)"]
 
     DBTrabajos[("Postgres<br/>hda_trabajos")]
     DBUsuarios[("Postgres<br/>hda_usuarios")]
+    DBProveedor[("Postgres<br/>hda_proveedor")]
+    DBTrabajoSaga[("Postgres<br/>hda_trabajo_saga")]
 
     subgraph Pulsar["Apache Pulsar"]
         TopicCreado{{"trabajo-creado<br/>evento de dominio"}}
         TopicSiniestro{{"trabajo-siniestro-creado<br/>evento de integración v1"}}
-        TopicNotificacion{{"notificacion-enviada<br/>evento de integración"}}
+        TopicNotificacion{{"notificacion-enviada<br/>evento de integración<br/>(sagaId opcional)"}}
+        ComandosSaga{{"comandos de la saga<br/>(trabajo-saga-service → participantes)"}}
+        EventosSaga{{"eventos resultado<br/>(participantes → trabajo-saga-service)"}}
     end
 
     Cliente -->|"POST / GET /trabajos"| Trabajos
@@ -51,6 +65,7 @@ graph LR
     Trabajos -->|publica| TopicCreado
     TopicCreado -->|"consume (Shared)"| Integracion
     TopicCreado -->|"consume (Shared)"| Notificaciones
+    TopicCreado -->|"consume (Shared)"| TrabajoSaga
     Integracion -->|publica| TopicSiniestro
     TopicSiniestro -->|consume| Externos
     Notificaciones -->|"GET /usuarios/{id}/contacto<br/>(único síncrono, HTTP)"| Usuarios
@@ -58,24 +73,42 @@ graph LR
     Notificaciones -->|"envía (simulado)"| Email
     Notificaciones -->|"envía (simulado)"| WhatsApp
     Notificaciones -->|publica| TopicNotificacion
+    TopicNotificacion -->|"consume (sagaId presente)"| TrabajoSaga
+
+    TrabajoSaga -->|publica| ComandosSaga
+    ComandosSaga -->|"consume: reservar/liberar"| Proveedor
+    ComandosSaga -->|"consume: asignar/cancelar"| Trabajos
+    ComandosSaga -->|"consume: notificar"| Notificaciones
+    Proveedor -->|publica| EventosSaga
+    Trabajos -->|publica| EventosSaga
+    EventosSaga -->|"consume (Shared)"| TrabajoSaga
+    Proveedor -->|R2DBC| DBProveedor
+    TrabajoSaga -->|R2DBC| DBTrabajoSaga
+    Tutor -->|"GET /sagas/trabajos/{trabajoId}<br/>GET /sagas/{sagaId}"| TrabajoSaga
 
     classDef servicio fill:#cfe8ff,stroke:#4a90d9,color:#000000;
     classDef infra fill:#ffe8b3,stroke:#d9a441,color:#000000;
     classDef topic fill:#d9f2d9,stroke:#4aa64a,color:#000000;
     classDef externo fill:#f0f0f0,stroke:#999999,color:#000000;
 
-    class Trabajos,Integracion,Notificaciones,Usuarios servicio;
-    class DBTrabajos,DBUsuarios infra;
-    class TopicCreado,TopicSiniestro,TopicNotificacion topic;
-    class Cliente,Externos,Email,WhatsApp externo;
+    class Trabajos,Integracion,Notificaciones,Usuarios,Proveedor,TrabajoSaga servicio;
+    class DBTrabajos,DBUsuarios,DBProveedor,DBTrabajoSaga infra;
+    class TopicCreado,TopicSiniestro,TopicNotificacion,ComandosSaga,EventosSaga topic;
+    class Cliente,Externos,Email,WhatsApp,Tutor externo;
 ```
 
-- Azul: los cuatro servicios Spring Boot (procesos independientes, cada uno con su propio
+- Azul: los seis servicios Spring Boot (procesos independientes, cada uno con su propio
   `main()` - ver `<servicio>/application`, p. ej. `backend/trabajos/application`).
 - Naranja: Postgres — un solo contenedor, con **una base separada por servicio**
-  (`hda_trabajos`, `hda_usuarios`; topología de datos descentralizada). `integracion-service`
-  y `notificaciones-service` no persisten nada propio (solo Redis para idempotencia).
-- Verde: los tópicos de Pulsar, viven dentro del broker.
+  (`hda_trabajos`, `hda_usuarios`, `hda_proveedor`, `hda_trabajo_saga`; topología de datos
+  descentralizada). `integracion-service` y `notificaciones-service` no persisten nada
+  propio (solo Redis para idempotencia).
+- Verde: los tópicos de Pulsar, viven dentro del broker. `ComandosSaga`/`EventosSaga` son
+  una simplificación del diagrama: en realidad son **9 tópicos distintos** (uno por cada
+  comando/evento de la sección 2.4 del plan de Entrega 5), cada uno bajo el namespace del
+  servicio que lo consume (comandos) o lo publica (eventos) — nunca uno propio de
+  `trabajo-saga-service` (ver [Saga: "Asignación de trabajo con
+  proveedor"](#saga-asignación-de-trabajo-con-proveedor)).
 - Gris: actores externos al sistema (incluye los canales simulados de notificación).
   Lo importante del diagrama: **ningún servicio le hace una llamada directa a otro, con
   una sola excepción explícita** — `notificaciones-service → usuarios-service` por HTTP,
@@ -92,10 +125,10 @@ por eventos importa (Modificabilidad 1.1). Agregar `usuarios-service` como cuart
 componente siguió la misma lógica: ninguno de los otros tres tuvo que cambiar para que
 existiera (solo `notificaciones-service`, que es quien lo consulta).
 
-## Estructura: arquitectura limpia, 4 servicios
+## Estructura: arquitectura limpia, 6 servicios
 
 Cada servicio es su propia carpeta de **primer nivel** dentro de `backend/`
-(`trabajos`/`integracion`/`notificaciones`/`usuarios` — el nombre corto, sin el sufijo
+(`trabajos`/`integracion`/`notificaciones`/`usuarios`/`proveedor`/`trabajo-saga` — el nombre corto, sin el sufijo
 `-service`; ese sufijo lo siguen llevando otros identificadores que sí lo necesitan para
 distinguirse de otras cosas: el nombre Spring (`spring.application.name: trabajos-service`),
 la imagen Docker/ECR (`hda/trabajos-service`), el objeto Kubernetes (`Service
@@ -136,7 +169,7 @@ backend/
 ├── eventos-shared/                      Esquemas Avro (published language) — el contrato
 │                                         entre servicios, y hacia afuera. Única carpeta que
 │                                         no sigue este patrón: librería plana compartida
-│                                         por los cuatro servicios (shared kernel).
+│                                         por los seis servicios (shared kernel).
 │
 ├── trabajos/
 │   ├── domain/
@@ -208,6 +241,54 @@ backend/
 │   │       └── r2dbc-postgresql/        Implementa UsuarioRepository (hda_usuarios - base
 │   │                                    separada, ver deploy/docker-compose/postgres-init/).
 │   └── application/                     UsuariosServiceApplication + wiring (UseCasesConfig).
+│
+├── proveedor/                            Nuevo en Entrega 5. Agregado Proveedor: la
+│                                         reserva/liberación es un UPDATE atómico a nivel de
+│                                         SQL, no un ciclo cargar-mutar-guardar (ver Saga Log
+│                                         más abajo - hallazgo del paso 9 de la verificación).
+│   ├── domain/
+│   │   ├── model/                       Proveedor (AggregateRoot<UUID>, datos semilla - no
+│   │   │                                se crea desde la app) y los puertos
+│   │   │                                ProveedorRepository, ProveedorEventPublisher.
+│   │   └── usecase/                     ReservarProveedorUseCase, LiberarProveedorUseCase
+│   │                                    (esta última no se ejercita en el camino de fallo de
+│   │                                    esta entrega, pero está implementada de verdad).
+│   ├── infrastructure/
+│   │   ├── entry-points/pulsar-command-handler/  Consume ReservarProveedorCommandV1 y
+│   │   │                                LiberarProveedorCommandV1.
+│   │   └── driven-adapters/
+│   │       ├── r2dbc-postgresql/        Implementa ProveedorRepository (hda_proveedor):
+│   │       │                            reserva atómica UPDATE...RETURNING, comparación
+│   │       │                            insensible a mayúsculas/tildes (TRANSLATE nativo).
+│   │       └── pulsar-event-bus/        Implementa ProveedorEventPublisher: publica
+│   │                                    ProveedorReservado/NoDisponible/Liberado.
+│   └── application/                     ProveedorServiceApplication + wiring. Puerto 8085.
+│
+└── trabajo-saga/                         Nuevo en Entrega 5. El orquestador — máquina de
+                                          estados explícita de la saga (ver sección dedicada
+                                          más abajo). Paquete base com.hda.trabajosaga.
+    ├── domain/
+    │   ├── model/                       SagaTrabajo (AggregateRoot<UUID> — su id ES el
+    │   │                                sagaId), PasoSaga/PasoSagaTipo/EstadoSaga, y los
+    │   │                                puertos SagaTrabajoRepository/SagaTrabajoEventPublisher.
+    │   └── usecase/                     OrquestarSagaTrabajoUseCase (un método por cada uno
+    │                                    de los 6 eventos que orquesta) y
+    │                                    ConsultarSagaTrabajoUseCase.
+    ├── infrastructure/
+    │   ├── entry-points/
+    │   │   ├── reactive-web/            SagaTrabajoController: GET /sagas/trabajos/{trabajoId}
+    │   │   │                            y GET /sagas/{sagaId}.
+    │   │   └── pulsar-event-handler/    6 listeners (TrabajoCreado, ProveedorReservado,
+    │   │                                ProveedorNoDisponible, TrabajoAsignado,
+    │   │                                TrabajoCancelado, NotificacionEnviada).
+    │   └── driven-adapters/
+    │       ├── r2dbc-postgresql/        Implementa SagaTrabajoRepository (hda_trabajo_saga,
+    │       │                            el Saga Log): upsert atómico de saga_trabajo (INSERT
+    │       │                            ... ON CONFLICT), inserts de saga_paso protegidos por
+    │       │                            UNIQUE(saga_id, paso).
+    │       └── pulsar-event-bus/        Implementa SagaTrabajoEventPublisher: publica los 5
+    │                                    comandos hacia proveedor/trabajos/notificaciones.
+    └── application/                     TrabajoSagaServiceApplication + wiring. Puerto 8086.
 ```
 
 La regla obligatoria de la guía se cumple explícitamente, **con una sola excepción
@@ -216,8 +297,11 @@ documentada**: ningún servicio le llama a otro por HTTP/directo, salvo
 comando). Todo lo demás sigue el mismo patrón de Entrega 3: `trabajos-service` publica en
 el tópico `trabajo-creado` de Pulsar; `integracion-service` y `notificaciones-service` lo
 consumen cada uno por su lado (fan-out, ver diagrama arriba) y publican
-`trabajo-siniestro-creado`/`notificacion-enviada` respectivamente. Son cuatro
-procesos/servicios Spring Boot independientes, cada uno con su propio `application/`.
+`trabajo-siniestro-creado`/`notificacion-enviada` respectivamente. `proveedor-service` y
+`trabajo-saga-service` (Entrega 5) siguen el mismo patrón, agregando comandos dirigidos
+(saga → participante) además de eventos — ver [Saga: "Asignación de trabajo con
+proveedor"](#saga-asignación-de-trabajo-con-proveedor). Son seis procesos/servicios Spring
+Boot independientes, cada uno con su propio `application/`.
 
 ## Mapeo con las decisiones de diseño
 
@@ -236,6 +320,131 @@ procesos/servicios Spring Boot independientes, cada uno con su propio `applicati
 | Modificabilidad: puerto `EmailSender` generalizado a `CanalNotificacion`; se agrega `WhatsAppChannelAdapter` sin tocar `trabajos-service`, `integracion-service` ni `usuarios-service` | `backend/notificaciones/domain/model`, `backend/notificaciones/infrastructure/driven-adapters/canal-notificacion` |
 | Interoperabilidad: agregar un cuarto servicio (`usuarios-service`) la única comunicación nueva es una consulta HTTP síncrona explícita, no un comando. | `backend/notificaciones/infrastructure/driven-adapters/http-client` |
 | Puerto separado para la acción real ("enviar" la notificación) vs. el evento que solo registra que ya se envió - mismo principio hexagonal que `TrabajoRepository`/`TrabajoEventPublisher` en trabajos-service | `domain` |
+| **Entrega 5** — Orquestador dedicado (`trabajo-saga-service`), no genérico: acotado a UNA transacción larga para evitar convertirse en "God Service" — otra transacción larga futura se modelaría como OTRO orquestador, nunca agregada a este | `backend/trabajo-saga` |
+| Saga Log (`saga_trabajo`/`saga_paso`) como fuente de verdad del estado de la saga y store de idempotencia (sin infraestructura adicional) | `backend/trabajo-saga/infrastructure/driven-adapters/r2dbc-postgresql/src/main/resources/trabajosaga/schema.sql` |
+| Compensación explícita: `Trabajo.cancelar(sagaId)`/`Proveedor.liberar(sagaId)`, idempotentes por guardas del propio agregado (mismo principio que `Trabajo.asignar(sagaId)`) | `backend/trabajos/domain/model`, `backend/proveedor/domain/model` |
+| Reserva de un recurso compartido y contendido (`Proveedor`) como UPDATE atómico (`WHERE disponible = TRUE ... RETURNING`), no como ciclo cargar-mutar-guardar — evita una carrera de lectura-decisión-escritura entre ejecuciones concurrentes del mismo comando (hallazgo real de la verificación de idempotencia, paso 9) | `backend/proveedor/infrastructure/driven-adapters/r2dbc-postgresql/ProveedorR2dbcRepository` |
+
+## Saga: "Asignación de trabajo con proveedor"
+
+Entrega 5 agrega la primera transacción larga del sistema: hoy un `Trabajo` se crea pero
+nunca se le asigna un proveedor. La saga cierra ese hueco, reutilizando el agregado
+`Proveedor` (documentado desde la Entrega 2, nunca implementado) y los estados
+`ASIGNADO`/`CANCELADO` de `EstadoTrabajo` (definidos desde la Entrega 3, nunca usados).
+
+```mermaid
+sequenceDiagram
+    participant T as trabajos-service
+    participant S as trabajo-saga-service (orquestador)
+    participant P as proveedor-service
+    participant N as notificaciones-service
+
+    T->>S: evento TrabajoCreado (Pulsar)
+    S->>S: crea saga_trabajo (estado=INICIADA)
+    S->>P: comando ReservarProveedorCommandV1
+
+    alt Proveedor disponible (camino feliz)
+        P->>S: evento ProveedorReservado
+        S->>S: saga_paso RESERVAR_PROVEEDOR=OK
+        S->>T: comando AsignarTrabajoCommandV1
+        T->>S: evento TrabajoAsignado
+        S->>S: saga_paso ASIGNAR_TRABAJO=OK, estado=ASIGNADA
+        S->>N: comando NotificarAsignacionCommandV1
+        N->>S: evento NotificacionEnviada (con sagaId)
+        S->>S: saga_paso NOTIFICAR=OK, estado=COMPLETADA
+    else Proveedor NO disponible (compensación)
+        P->>S: evento ProveedorNoDisponible
+        S->>S: saga_paso RESERVAR_PROVEEDOR=FALLO, estado=COMPENSANDO
+        S->>T: comando CancelarTrabajoCommandV1
+        T->>S: evento TrabajoCancelado
+        S->>S: saga_paso COMPENSAR_CANCELAR_TRABAJO=OK
+        S->>N: comando NotificarFalloCommandV1
+        N->>S: evento NotificacionEnviada (con sagaId)
+        S->>S: saga_paso NOTIFICAR_FALLO=OK, estado=CANCELADA
+    end
+```
+
+Único camino de fallo/compensación implementado: "proveedor no disponible" — alcanza para
+demostrar tanto la transacción exitosa como la compensada, sin multiplicar la superficie de
+prueba. Demo determinista (ver semilla en `backend/proveedor/.../schema.sql`): un `Trabajo`
+`plomeria`/`Bogota` sigue el camino feliz (existe `Proveedor X`); uno `plomeria`/`Medellin`
+dispara la compensación (no hay ningún proveedor ahí).
+
+### Por qué esto es orquestación aunque todo viaje por eventos
+
+La distinción orquestación/coreografía **no depende de si la comunicación es síncrona o
+asíncrona** — depende de **dónde vive el conocimiento de "qué sigue"**. Aquí, un único
+componente (`trabajo-saga-service`) conoce el proceso completo como una máquina de estados
+explícita (`OrquestarSagaTrabajoUseCase`, `backend/trabajo-saga/domain/model/SagaTrabajo.java`).
+`trabajos-service`, `proveedor-service` y `notificaciones-service` **no saben que están en
+una saga**: solo reciben un comando, ejecutan su transacción local, y devuelven un evento de
+resultado — la regla "si no hay proveedor, cancela y notifica el fallo" vive únicamente en
+el orquestador. Si fuera coreografía, `proveedor-service` tendría que saber qué evento
+entiende `trabajos-service` como "cancélate" — un acoplamiento indirecto entre servicios que
+no deberían conocerse.
+
+Que el canal entre orquestador y participantes sea Pulsar (asíncrono) en vez de HTTP es un
+detalle de transporte — de hecho es lo que hacen en la práctica los motores de sagas reales
+(Camunda, Temporal, Step Functions con colas) para no bloquear a nadie, y mantiene la regla
+de arquitectura basada en eventos que ya tenía el resto del sistema desde la Entrega 3.
+
+### Compensación e idempotencia
+
+| Servicio | Transacción local | Compensación | Idempotencia |
+| --- | --- | --- | --- |
+| `proveedor-service` | Reservar (`UPDATE ... WHERE disponible=TRUE ... RETURNING`, atómico) | `LiberarProveedorCommandV1` implementado de verdad (no solo diseñado) — el camino de fallo de esta entrega nunca lo dispara (nunca llegó a reservarse nada), pero existe para cuando un paso posterior falle con el proveedor ya reservado | `saga_id_reserva` guardado junto con la reserva; una reserva repetida para el mismo `sagaId` no vuelve a tocar la fila, solo reemite el resultado |
+| `trabajos-service` | Crear (`CREADO`) / Asignar (`ASIGNADO`) | `CancelarTrabajoCommandV1`, ya existente | `Trabajo.asignar()`/`cancelar()` no hacen nada si el estado ya es el destino — el agregado protege su propio invariante |
+| `notificaciones-service` | Enviar notificación | **Ninguna, a propósito** — una notificación enviada no se puede "des-enviar"; por eso el paso de notificar va siempre al final, después de que todo lo compensable ya se resolvió | `EventDeduplicationStore` (Redis) de la Entrega 4, ahora también para los comandos de la saga — con `olvidar(eventId)` agregado en Entrega 5 para que una redelivery reintente de verdad si el procesamiento falló después de marcar visto (ver hallazgo del paso 7) |
+| `trabajo-saga-service` | Escribir en el Saga Log / avanzar el estado | No aplica (es el orquestador, no un participante de negocio) | El propio Saga Log es el store de idempotencia: antes de insertar un `saga_paso` se verifica si ya existe uno para `(saga_id, paso)` — reforzado por `UNIQUE (saga_id, paso)` en la base como backstop (ver hallazgo del paso 7) |
+
+No se implementó ningún escenario de reintento simulado en el camino feliz/compensación de
+demo — pero sí se verificó a mano (paso 9 de la implementación) reenviando el mismo
+`ReservarProveedorCommandV1` dos veces: el proveedor no queda doblemente reservado y el
+`saga_paso` no se duplica.
+
+### Saga Log: consultas de demo
+
+`trabajo-saga-service` persiste cada saga y cada uno de sus pasos en su propia base
+(`hda_trabajo_saga`, separada de las otras 4). Consultas listas para copiar/pegar:
+
+```shell
+# Ver todas las sagas y en qué estado quedaron
+docker exec hda-postgres psql -U hda -d hda_trabajo_saga \
+  -c "SELECT id, trabajo_id, estado, fecha_inicio, fecha_fin FROM saga_trabajo ORDER BY fecha_inicio DESC;"
+
+# Reconstruir la línea de tiempo de UNA saga (camino feliz o compensado)
+docker exec hda-postgres psql -U hda -d hda_trabajo_saga \
+  -c "SELECT paso, resultado, detalle, ocurrido_en FROM saga_paso WHERE saga_id = '<id>' ORDER BY ocurrido_en;"
+
+# Todas las sagas que terminaron en compensación
+docker exec hda-postgres psql -U hda -d hda_trabajo_saga \
+  -c "SELECT * FROM saga_trabajo WHERE estado = 'CANCELADA';"
+```
+
+O por API (mismo dato, vía el endpoint de consulta — es lo que el BFF consumirá más
+adelante). Dos rutas equivalentes, según qué id tengas a mano:
+
+```shell
+curl http://localhost:8086/sagas/trabajos/<trabajoId>
+curl http://localhost:8086/sagas/<sagaId>
+```
+
+```json
+{
+  "sagaId": "0bbace99-e85e-4ffd-a5de-ff23c8dab804",
+  "trabajoId": "d626ba16-95aa-4d56-b5cd-7c4202e3a927",
+  "estado": "COMPLETADA",
+  "fechaInicio": "2026-09-20T19:57:05.121989Z",
+  "fechaFin": "2026-09-20T19:57:05.913894Z",
+  "pasos": [
+    {"paso": "RESERVAR_PROVEEDOR", "resultado": "OK", "detalle": "proveedorId=..., nombreProveedor=Proveedor X", "ocurridoEn": "..."},
+    {"paso": "ASIGNAR_TRABAJO", "resultado": "OK", "detalle": "estado=ASIGNADO", "ocurridoEn": "..."},
+    {"paso": "NOTIFICAR", "resultado": "OK", "detalle": "notificacion de asignacion enviada", "ocurridoEn": "..."}
+  ]
+}
+```
+
+`404` si no hay ninguna saga registrada todavía para ese id.
 
 ## Versión de Spring Boot y de Gradle
 
@@ -267,7 +476,7 @@ El proyecto usa **Spring Boot 4.1.1**. Esa versión de su plugin de Gradle exige
    servicio). Copia la plantilla versionada y ajústala con tus propios valores:
 
 ```shell
-   cp backend/.env.example backend/.env
+   cp deploy/docker-compose/.env.example deploy/docker-compose/.env
    # edita backend/.env y cambia al menos POSTGRES_PASSWORD
    ```
 
@@ -278,24 +487,26 @@ El proyecto usa **Spring Boot 4.1.1**. Esa versión de su plugin de Gradle exige
    | --- | --- | --- |
    | `POSTGRES_DB` | Base de datos de `trabajos-service` | `hda_trabajos` |
    | `POSTGRES_USUARIOS_DB` | Base de datos de `usuarios-service` | `hda_usuarios` |
+   | `POSTGRES_PROVEEDOR_DB` | Base de datos de `proveedor-service` (Entrega 5) | `hda_proveedor` |
+   | `POSTGRES_TRABAJO_SAGA_DB` | Base de datos (Saga Log) de `trabajo-saga-service` (Entrega 5) | `hda_trabajo_saga` |
    | `POSTGRES_USER` | Usuario de Postgres | `hda` |
    | `POSTGRES_PASSWORD` | Contraseña de Postgres | `changeit` (¡cámbiala!) |
-   | `POSTGRES_HOST` | Host al que se conectan `trabajos-service`/`usuarios-service` | `localhost` |
+   | `POSTGRES_HOST` | Host al que se conectan los servicios con Postgres | `localhost` |
    | `POSTGRES_PORT` | Puerto de Postgres | `5432` |
 
    Si no defines nada, aplican los valores por defecto (pensados solo para desarrollo
    local). Si arrancas un servicio **fuera** de Docker Compose (con `java -jar`), exporta
    las variables en esa terminal para que las lea la app.
 
-   > **`hda_usuarios` solo se crea en un volumen nuevo de Postgres.** El script
-   > `backend/docker/postgres-init/01-create-usuarios-db.sh` corre automáticamente la
-   > primera vez que se inicializa el volumen `pgdata` (Postgres solo ejecuta
-   > `docker-entrypoint-initdb.d` en un volumen vacío). Si ya tenías el contenedor de una
-   > sesión anterior a que existiera `usuarios-service`, hay que recrear el volumen una
-   > vez para que se aplique:
+   > **Cada base (`hda_usuarios`, `hda_proveedor`, `hda_trabajo_saga`) solo se crea en un
+   > volumen nuevo de Postgres.** Los scripts en `deploy/docker-compose/postgres-init/`
+   > corren automáticamente la primera vez que se inicializa el volumen `pgdata` (Postgres
+   > solo ejecuta `docker-entrypoint-initdb.d` en un volumen vacío). Si ya tenías el
+   > contenedor de una sesión anterior a que existieran estos servicios, hay que recrear el
+   > volumen una vez para que se aplique:
    > ```shell
-   > docker compose --env-file backend/.env -f backend/docker-compose.yml down -v
-   > docker compose --env-file backend/.env -f backend/docker-compose.yml up -d
+   > docker compose --env-file deploy/docker-compose/.env -f deploy/docker-compose/docker-compose.yml down -v
+   > docker compose --env-file deploy/docker-compose/.env -f deploy/docker-compose/docker-compose.yml up -d
    > ```
    > (`down -v` borra los datos de **ambas** bases en ese volumen - solo son datos de
    > prueba locales, no hay nada que perder en desarrollo.)
@@ -305,7 +516,7 @@ El proyecto usa **Spring Boot 4.1.1**. Esa versión de su plugin de Gradle exige
    idempotencia (deduplicación de eventos por su `id`).
 
 ```shell
-   docker compose --env-file backend/.env -f backend/docker-compose.yml up -d
+   docker compose --env-file deploy/docker-compose/.env -f deploy/docker-compose/docker-compose.yml up -d
    ```
 
    > **Importante al ejecutar desde la raíz:** hay que pasar **ambos**
@@ -323,17 +534,21 @@ El proyecto usa **Spring Boot 4.1.1**. Esa versión de su plugin de Gradle exige
    docker exec hda-pulsar bin/pulsar-admin namespaces create hda/trabajos
    docker exec hda-pulsar bin/pulsar-admin namespaces create hda/integracion
    docker exec hda-pulsar bin/pulsar-admin namespaces create hda/notificaciones
+   docker exec hda-pulsar bin/pulsar-admin namespaces create hda/proveedor
    ```
 
    (Estos usan `docker exec` sobre el contenedor `hda-pulsar`, así que funcionan igual
-   desde cualquier directorio.)
+   desde cualquier directorio. `trabajo-saga-service` no necesita un namespace propio: todo
+   lo que publica/consume vive bajo el namespace del servicio receptor o emisor
+   correspondiente — ver [Saga: "Asignación de trabajo con
+   proveedor"](#saga-asignación-de-trabajo-con-proveedor).)
 
-3. Compilar los cuatro servicios. Cada uno es su propio módulo Gradle bootable (con su
+3. Compilar los seis servicios. Cada uno es su propio módulo Gradle bootable (con su
    propio classpath y su propio `build/libs/`), así que se pueden compilar juntos o por
    separado sin que uno afecte al otro:
 
 ```shell
-./backend/gradlew -p backend :trabajos-application:bootJar :integracion-application:bootJar :notificaciones-application:bootJar :usuarios-application:bootJar
+./backend/gradlew -p backend :trabajos-application:bootJar :integracion-application:bootJar :notificaciones-application:bootJar :usuarios-application:bootJar :proveedor-application:bootJar :trabajo-saga-application:bootJar
 ```
 
    (o compilar todo el proyecto de una vez: `./backend/gradlew -p backend build`.)
@@ -365,6 +580,21 @@ java -jar backend/integracion/application/build/libs/integracion-service.jar
 
 ```shell
 java -jar backend/notificaciones/application/build/libs/notificaciones-service.jar
+```
+
+- `proveedor-service` (`com.hda.proveedor.ProveedorServiceApplication`) → puerto `8085`.
+  Nuevo en Entrega 5.
+
+```shell
+java -jar backend/proveedor/application/build/libs/proveedor-service.jar
+```
+
+- `trabajo-saga-service` (`com.hda.trabajosaga.TrabajoSagaServiceApplication`) → puerto
+  `8086`. Nuevo en Entrega 5 — el orquestador de la saga, **arráncalo después** de los
+  cinco anteriores para no perderte los eventos que dispara la primera prueba.
+
+```shell
+java -jar backend/trabajo-saga/application/build/libs/trabajo-saga-service.jar
 ```
 
 4. `usuarios-service` viene con 3 usuarios semilla (UUID fijo, ver
@@ -415,6 +645,26 @@ cual, sin reemplazar, no es un id válido y da `400 Bad Request`):
 
 ```shell
 curl http://localhost:8081/trabajos/<id>
+```
+
+6. **Probar la saga (Entrega 5)** — con `proveedor-service` y `trabajo-saga-service`
+   arriba, el mismo `POST /trabajos` del paso anterior (`plomeria`/`Bogota`) ya dispara el
+   camino feliz completo de la saga, sin nada adicional que hacer. Para ver también el
+   camino de compensación, repite el `POST` con `ciudad: "Medellin"` (no hay ningún
+   proveedor sembrado ahí a propósito):
+
+```shell
+curl -X POST http://localhost:8081/trabajos \
+-H 'Content-Type: application/json' \
+-d '{"clienteId": "11111111-1111-1111-1111-111111111112", "categoriaServicio": "plomeria", "urgencia": "MEDIA", "ciudad": "Medellin", "origen": "MARKETPLACE", "partnerId": null, "moneda": "COP"}'
+```
+
+   Consulta el resultado con el `id` de cualquiera de los dos (ver [Saga: "Asignación de
+   trabajo con proveedor"](#saga-asignación-de-trabajo-con-proveedor) para las consultas
+   SQL directas):
+
+```shell
+curl http://localhost:8086/sagas/trabajos/<id>
 ```
 
 ## Cómo inspeccionar Postgres y Pulsar directamente

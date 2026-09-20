@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "NotificarAsignacionCommandV1",
+  "namespace": "com.hda.eventos.notificaciones.commands.v1",
+  "doc": "Comando publicado por trabajo-saga-service y consumido por notificaciones-service: ultimo paso del camino feliz de la saga 'Asignacion de trabajo con proveedor'. Se publica solo despues de que todo lo compensable ya se resolvio, porque una notificacion enviada no se puede deshacer.",
+  "fields": [
+    {"name": "sagaId", "type": "string"},
+    {"name": "trabajoId", "type": "string"},
+    {"name": "clienteId", "type": "string"},
+    {"name": "mensaje", "type": "string"}
+  ]
+}

@@ -1,0 +1,93 @@
+server:
+  port: 8086
+
+spring:
+  application:
+    name: trabajo-saga-service
+  r2dbc:
+    url: r2dbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_TRABAJO_SAGA_DB:hda_trabajo_saga}
+    username: ${POSTGRES_USER:hda}
+    password: ${POSTGRES_PASSWORD:changeit}
+  sql:
+    init:
+      mode: always   # ejecuta schema.sql al arrancar (crea saga_trabajo/saga_paso si no existen)
+      schema-locations: classpath:trabajosaga/schema.sql
+
+hda:
+  pulsar:
+    service-url: ${PULSAR_SERVICE_URL:pulsar://localhost:6650}
+    admin-url: ${PULSAR_ADMIN_URL:http://localhost:8080}
+
+    # Consumo: eventos publicados por los participantes (cada uno bajo el namespace del
+    # servicio que los publica - mismos topicos que ya usan sus propios application.yml).
+    topic-trabajo-creado: persistent://hda/trabajos/trabajo-creado
+    subscription-trabajo-creado: trabajo-saga-trabajo-creado-sub
+    topic-proveedor-reservado: persistent://hda/proveedor/proveedor-reservado
+    subscription-proveedor-reservado: trabajo-saga-proveedor-reservado-sub
+    topic-proveedor-no-disponible: persistent://hda/proveedor/proveedor-no-disponible
+    subscription-proveedor-no-disponible: trabajo-saga-proveedor-no-disponible-sub
+    topic-trabajo-asignado: persistent://hda/trabajos/trabajo-asignado
+    subscription-trabajo-asignado: trabajo-saga-trabajo-asignado-sub
+    topic-trabajo-cancelado: persistent://hda/trabajos/trabajo-cancelado
+    subscription-trabajo-cancelado: trabajo-saga-trabajo-cancelado-sub
+    topic-notificacion-enviada: persistent://hda/notificaciones/notificacion-enviada
+    subscription-notificacion-enviada: trabajo-saga-notificacion-enviada-sub
+
+    # Publicacion: comandos hacia los participantes (cada uno bajo el namespace del
+    # servicio RECEPTOR, mismo criterio que CrearTrabajoCommandV1 en integracion-service).
+    topic-reservar-proveedor-command: persistent://hda/proveedor/reservar-proveedor-command
+    topic-asignar-trabajo-command: persistent://hda/trabajos/asignar-trabajo-command
+    topic-cancelar-trabajo-command: persistent://hda/trabajos/cancelar-trabajo-command
+    topic-notificar-asignacion-command: persistent://hda/notificaciones/notificar-asignacion-command
+    topic-notificar-fallo-command: persistent://hda/notificaciones/notificar-fallo-command
+
+logging:
+  level:
+    org.apache.pulsar.client.impl.ProducerStatsRecorderImpl: WARN
+
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health, metrics"
+
+  endpoint:
+    health:
+      probes:
+        enabled: false
+      show-details: "always"
+
+  observations:
+    annotations:
+      enabled: true
+
+  otlp:
+    metrics:
+      export:
+        enabled: "${OTEL_COLLECTOR_ENABLED:false}"
+        url: "${OTEL_COLLECTOR_HOST:http://localhost:4018}/v1/metrics"
+        step: "${OTEL_COLLECTOR_STEP:1m}"
+        headers:
+          Authorization: "Basic "
+  metrics:
+    enable:
+      all: "${METRICS_ENABLE_ALL:true}"
+
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: "${OTEL_COLLECTOR_HOST:http://localhost:4018}/v1/traces"
+          compression: "gzip"
+          headers:
+            Authorization: "Basic "
+
+    resource-attributes:
+      service.name: "${SERVICE_NAME:trabajo-saga}"
+
+  tracing:
+    export:
+      enabled: "${OTEL_TRACING_ENABLED:false}"
+    sampling:
+      probability: "${OTEL_TRACING_SAMPLING:1.0}"

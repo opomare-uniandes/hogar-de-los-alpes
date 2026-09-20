@@ -13,6 +13,8 @@ import java.util.List;
 
 public class EnviarNotificacionUseCase {
 
+    private static final String MENSAJE = "Tu trabajo fue creado y ya estamos trabajando en asignarlo.";
+
     private final ConsultaUsuarioGateway consultaUsuarioGateway;
     private final CanalNotificacion emailChannel;
     private final CanalNotificacion whatsappChannel;
@@ -33,10 +35,10 @@ public class EnviarNotificacionUseCase {
                 .flatMapMany(contacto -> {
                     List<Mono<NotificacionEnviada>> envios = new ArrayList<>();
                     if (contacto.notificarPorEmail()) {
-                        envios.add(emailChannel.enviar(evento, contacto));
+                        envios.add(emailChannel.enviar(null, evento.trabajoId(), evento.clienteId(), MENSAJE, contacto));
                     }
                     if (contacto.notificarPorWhatsapp()) {
-                        envios.add(whatsappChannel.enviar(evento, contacto));
+                        envios.add(whatsappChannel.enviar(null, evento.trabajoId(), evento.clienteId(), MENSAJE, contacto));
                     }
                     return Flux.merge(envios);
                 })

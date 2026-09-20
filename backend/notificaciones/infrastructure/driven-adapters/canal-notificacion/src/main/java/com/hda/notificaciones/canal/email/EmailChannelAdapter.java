@@ -2,7 +2,6 @@ package com.hda.notificaciones.canal.email;
 
 import com.hda.notificaciones.model.notificacion.NotificacionEnviada;
 import com.hda.notificaciones.model.notificacion.gateways.CanalNotificacion;
-import com.hda.notificaciones.model.trabajocreado.TrabajoCreadoEvento;
 import com.hda.notificaciones.model.usuario.ContactoUsuario;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,18 +14,16 @@ import java.time.Instant;
 public class EmailChannelAdapter implements CanalNotificacion {
 
     private static final Logger log = LoggerFactory.getLogger(EmailChannelAdapter.class);
-    private static final String MENSAJE = "Tu trabajo fue creado y ya estamos trabajando en asignarlo.";
 
     @Override
-    public Mono<NotificacionEnviada> enviar(TrabajoCreadoEvento evento, ContactoUsuario contacto) {
+    public Mono<NotificacionEnviada> enviar(String sagaId, String trabajoId, String clienteId, String mensaje,
+                                             ContactoUsuario contacto) {
         String destinatario = contacto.correo();
 
-        log.info("[EMAIL SIMULADO] Para: {} | Asunto: Tu trabajo {} fue creado | "
-                        + "Categoria: {} | Ciudad: {} | Urgencia: {}",
-                destinatario, evento.trabajoId(), evento.categoriaServicio(),
-                evento.ciudad(), evento.urgencia());
+        log.info("[EMAIL SIMULADO] Para: {} | Mensaje: {} | TrabajoId: {} | SagaId: {}",
+                destinatario, mensaje, trabajoId, sagaId);
 
         return Mono.just(new NotificacionEnviada(
-                evento.trabajoId(), evento.clienteId(), "EMAIL", destinatario, MENSAJE, Instant.now()));
+                sagaId, trabajoId, clienteId, "EMAIL", destinatario, mensaje, Instant.now()));
     }
 }

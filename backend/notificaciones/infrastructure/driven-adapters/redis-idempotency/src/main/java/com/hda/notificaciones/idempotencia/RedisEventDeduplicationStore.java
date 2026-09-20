@@ -44,4 +44,12 @@ public class RedisEventDeduplicationStore implements EventDeduplicationStore {
                     }
                 });
     }
+
+    @Override
+    public Mono<Void> olvidar(String eventId) {
+        String clave = PREFIJO + eventId;
+        return redis.opsForValue().delete(clave)
+                .doOnNext(borrado -> log.info("[IDEMPOTENCIA] Procesamiento fallido, se olvida para permitir reintento: id={}", eventId))
+                .then();
+    }
 }

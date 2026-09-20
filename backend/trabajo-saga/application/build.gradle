@@ -1,0 +1,18 @@
+apply plugin: 'org.springframework.boot'
+
+dependencies {
+    implementation project(':trabajo-saga-model')
+    implementation project(':trabajo-saga-usecase')
+    implementation project(':trabajo-saga-reactive-web')
+    implementation project(':trabajo-saga-r2dbc-postgresql')
+    implementation project(':trabajo-saga-pulsar-event-bus')
+    implementation project(':trabajo-saga-pulsar-event-handler')
+
+    implementation 'org.springframework.boot:spring-boot-starter' // @SpringBootApplication
+    implementation 'org.apache.pulsar:pulsar-client-api' // PulsarConfig expone el bean PulsarClient
+    implementation 'org.springframework.boot:spring-boot-r2dbc' // spring.sql.init.mode: always
+}
+
+bootJar {
+    archiveFileName = 'trabajo-saga-service.jar'
+}

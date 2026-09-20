@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "NotificarFalloCommandV1",
+  "namespace": "com.hda.eventos.notificaciones.commands.v1",
+  "doc": "Comando publicado por trabajo-saga-service y consumido por notificaciones-service: ultimo paso del camino de compensacion de la saga 'Asignacion de trabajo con proveedor', tras cancelar el Trabajo.",
+  "fields": [
+    {"name": "sagaId", "type": "string"},
+    {"name": "trabajoId", "type": "string"},
+    {"name": "clienteId", "type": "string"},
+    {"name": "mensaje", "type": "string"}
+  ]
+}

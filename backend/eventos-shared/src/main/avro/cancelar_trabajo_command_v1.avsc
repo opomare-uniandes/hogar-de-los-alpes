@@ -1,0 +1,11 @@
+{
+  "type": "record",
+  "name": "CancelarTrabajoCommandV1",
+  "namespace": "com.hda.eventos.trabajos.commands.v1",
+  "doc": "Comando de COMPENSACION publicado por trabajo-saga-service y consumido por trabajos-service cuando no hay proveedor disponible: pasa el Trabajo a CANCELADO (Trabajo.cancelar()).",
+  "fields": [
+    {"name": "sagaId", "type": "string"},
+    {"name": "trabajoId", "type": "string"},
+    {"name": "motivo", "type": "string"}
+  ]
+}

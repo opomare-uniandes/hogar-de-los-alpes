@@ -1,0 +1,17 @@
+apply plugin: 'org.springframework.boot'
+
+dependencies {
+    implementation project(':proveedor-model')
+    implementation project(':proveedor-usecase')
+    implementation project(':proveedor-r2dbc-postgresql')
+    implementation project(':proveedor-pulsar-event-bus')
+    implementation project(':proveedor-pulsar-command-handler')
+
+    implementation 'org.springframework.boot:spring-boot-starter' // @SpringBootApplication
+    implementation 'org.apache.pulsar:pulsar-client-api' // PulsarConfig expone el bean PulsarClient
+    implementation 'org.springframework.boot:spring-boot-r2dbc' // spring.sql.init.mode: always
+}
+
+bootJar {
+    archiveFileName = 'proveedor-service.jar'
+}
