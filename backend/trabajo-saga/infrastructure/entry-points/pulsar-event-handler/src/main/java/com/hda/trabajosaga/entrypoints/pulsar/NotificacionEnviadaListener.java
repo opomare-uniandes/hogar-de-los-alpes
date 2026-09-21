@@ -31,6 +31,7 @@ public class NotificacionEnviadaListener {
     private final OrquestarSagaTrabajoUseCase useCase;
     private final String topico;
     private final String suscripcion;
+    private final ConsumoEnVueloTracker enVuelo = new ConsumoEnVueloTracker();
     private Consumer<NotificacionEnviada> consumidor;
 
     public NotificacionEnviadaListener(
@@ -52,6 +53,7 @@ public class NotificacionEnviadaListener {
     }
 
     private void procesar(Consumer<NotificacionEnviada> consumer, Message<NotificacionEnviada> mensaje) {
+        enVuelo.iniciar();
         NotificacionEnviada entrada = mensaje.getValue();
         String sagaId = entrada.getSagaId();
 
@@ -62,11 +64,13 @@ public class NotificacionEnviadaListener {
         resultado
                 .doOnSuccess(ignored -> consumer.acknowledgeAsync(mensaje))
                 .doOnError(ignored -> consumer.negativeAcknowledge(mensaje))
+                .doFinally(signal -> enVuelo.finalizar())
                 .subscribe();
     }
 
     @PreDestroy
     void detener() throws PulsarClientException {
+        enVuelo.esperarDrenaje("NotificacionEnviadaListener");
         if (consumidor != null) consumidor.close();
     }
 }

@@ -24,6 +24,7 @@ public class ProveedorReservadoListener {
     private final OrquestarSagaTrabajoUseCase useCase;
     private final String topico;
     private final String suscripcion;
+    private final ConsumoEnVueloTracker enVuelo = new ConsumoEnVueloTracker();
     private Consumer<ProveedorReservado> consumidor;
 
     public ProveedorReservadoListener(
@@ -45,6 +46,7 @@ public class ProveedorReservadoListener {
     }
 
     private void procesar(Consumer<ProveedorReservado> consumer, Message<ProveedorReservado> mensaje) {
+        enVuelo.iniciar();
         ProveedorReservado entrada = mensaje.getValue();
         ProveedorReservadoComando comando = new ProveedorReservadoComando(
                 UUID.fromString(entrada.getSagaId()), UUID.fromString(entrada.getProveedorId()),
@@ -52,11 +54,13 @@ public class ProveedorReservadoListener {
         useCase.manejarProveedorReservado(comando)
                 .doOnSuccess(ignored -> consumer.acknowledgeAsync(mensaje))
                 .doOnError(ignored -> consumer.negativeAcknowledge(mensaje))
+                .doFinally(signal -> enVuelo.finalizar())
                 .subscribe();
     }
 
     @PreDestroy
     void detener() throws PulsarClientException {
+        enVuelo.esperarDrenaje("ProveedorReservadoListener");
         if (consumidor != null) consumidor.close();
     }
 }

@@ -1,37 +1,6 @@
-# Autoescalado por CPU de los servicios de entrada (los que NO consumen topicos de Pulsar).
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: trabajos-service-hpa
-  namespace: hda
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: trabajos-service
-  minReplicas: 1
-  maxReplicas: 5
-  metrics:
-    - type: Resource
-      resource:
-        name: cpu
-        target:
-          type: Utilization
-          averageUtilization: 60
-  behavior:
-    scaleUp:
-      stabilizationWindowSeconds: 0
-      policies:
-        - type: Pods
-          value: 2
-          periodSeconds: 30
-    scaleDown:
-      stabilizationWindowSeconds: 120
-      policies:
-        - type: Pods
-          value: 1
-          periodSeconds: 60
----
+# Autoescalado por CPU del servicio de entrada que NO consume topicos de Pulsar. trabajos-service
+# tambien consume comandos Pulsar (crear/asignar/cancelar-trabajo-command) ademas de su API REST,
+# por lo que ya no usa HPA por CPU solo - ver su ScaledObject multi-trigger en 30-scaledobjects.yaml.
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:

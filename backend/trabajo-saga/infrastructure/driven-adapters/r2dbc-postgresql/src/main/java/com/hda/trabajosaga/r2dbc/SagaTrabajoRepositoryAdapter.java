@@ -11,6 +11,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.ReactiveTransactionManager;
+import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
@@ -25,13 +27,16 @@ public class SagaTrabajoRepositoryAdapter implements SagaTrabajoRepository {
     private final DatabaseClient databaseClient;
     private final SagaTrabajoR2dbcRepository sagaR2dbcRepository;
     private final SagaPasoR2dbcRepository pasoR2dbcRepository;
+    private final TransactionalOperator transactionalOperator;
 
     public SagaTrabajoRepositoryAdapter(DatabaseClient databaseClient,
                                          SagaTrabajoR2dbcRepository sagaR2dbcRepository,
-                                         SagaPasoR2dbcRepository pasoR2dbcRepository) {
+                                         SagaPasoR2dbcRepository pasoR2dbcRepository,
+                                         ReactiveTransactionManager transactionManager) {
         this.databaseClient = databaseClient;
         this.sagaR2dbcRepository = sagaR2dbcRepository;
         this.pasoR2dbcRepository = pasoR2dbcRepository;
+        this.transactionalOperator = TransactionalOperator.create(transactionManager);
     }
 
     @Override
@@ -55,21 +60,28 @@ public class SagaTrabajoRepositoryAdapter implements SagaTrabajoRepository {
                         p.detalle(), p.ocurridoEn()))
                 .toList();
 
-        return upsertSaga.then()
+        // El upsert de saga_trabajo y el insert de saga_paso deben confirmarse juntos: al
+        // escalar trabajo-saga-service a varias replicas, un pod puede ser terminado (scale-down
+        // de KEDA) entre ambas escrituras. Sin transaccion, eso deja el estado ya avanzado pero
+        // el paso sin registrar, y la redelivery reprocesa el paso y publica su comando de salida
+        // una segunda vez - justo lo que el backstop de idempotencia de abajo deberia evitar.
+        Mono<SagaTrabajo> escritura = upsertSaga.then()
                 .thenMany(pasoR2dbcRepository.saveAll(pasosNuevos))
                 .then(Mono.just(saga))
+                .as(transactionalOperator::transactional)
                 .doOnNext(s -> log.info("[SAGA_TRABAJO GUARDADA] Id: {} | TrabajoId: {} | Estado: {} | PasosNuevos: {}",
-                        s.getId(), s.getTrabajoId(), s.getEstado(), pasosNuevos.size()))
-                // Backstop de idempotencia (seccion 3 del plan): UNIQUE (saga_id, paso) y UNIQUE
-                // (trabajo_id) existen justamente para rechazar una escritura repetida. Si otra
-                // ejecucion concurrente (p.ej. una redelivery de Pulsar) ya inserto lo mismo, eso
-                // NO es un fallo - es el resultado esperado. Tratarlo como error dejaria el mensaje
-                // en negativeAcknowledge y forzaria una redelivery inutil 60s despues.
-                .onErrorResume(DuplicateKeyException.class, e -> {
-                    log.info("[SAGA_TRABAJO] Escritura duplicada rechazada por el backstop de idempotencia "
-                            + "(ver seccion 3 del plan) - se ignora. SagaId: {}", saga.getId());
-                    return Mono.empty();
-                });
+                        s.getId(), s.getTrabajoId(), s.getEstado(), pasosNuevos.size()));
+
+        // Backstop de idempotencia (seccion 3 del plan): UNIQUE (saga_id, paso) y UNIQUE
+        // (trabajo_id) existen justamente para rechazar una escritura repetida. Si otra
+        // ejecucion concurrente (p.ej. una redelivery de Pulsar) ya inserto lo mismo, eso
+        // NO es un fallo - es el resultado esperado. Tratarlo como error dejaria el mensaje
+        // en negativeAcknowledge y forzaria una redelivery inutil 60s despues.
+        return escritura.onErrorResume(DuplicateKeyException.class, e -> {
+            log.info("[SAGA_TRABAJO] Escritura duplicada rechazada por el backstop de idempotencia "
+                    + "(ver seccion 3 del plan) - se ignora. SagaId: {}", saga.getId());
+            return Mono.empty();
+        });
     }
 
     @Override

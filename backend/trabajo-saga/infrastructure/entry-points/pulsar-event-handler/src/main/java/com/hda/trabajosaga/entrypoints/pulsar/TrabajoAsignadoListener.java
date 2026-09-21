@@ -24,6 +24,7 @@ public class TrabajoAsignadoListener {
     private final OrquestarSagaTrabajoUseCase useCase;
     private final String topico;
     private final String suscripcion;
+    private final ConsumoEnVueloTracker enVuelo = new ConsumoEnVueloTracker();
     private Consumer<TrabajoAsignado> consumidor;
 
     public TrabajoAsignadoListener(
@@ -45,16 +46,19 @@ public class TrabajoAsignadoListener {
     }
 
     private void procesar(Consumer<TrabajoAsignado> consumer, Message<TrabajoAsignado> mensaje) {
+        enVuelo.iniciar();
         TrabajoAsignado entrada = mensaje.getValue();
         TrabajoAsignadoComando comando = new TrabajoAsignadoComando(UUID.fromString(entrada.getSagaId()));
         useCase.manejarTrabajoAsignado(comando)
                 .doOnSuccess(ignored -> consumer.acknowledgeAsync(mensaje))
                 .doOnError(ignored -> consumer.negativeAcknowledge(mensaje))
+                .doFinally(signal -> enVuelo.finalizar())
                 .subscribe();
     }
 
     @PreDestroy
     void detener() throws PulsarClientException {
+        enVuelo.esperarDrenaje("TrabajoAsignadoListener");
         if (consumidor != null) consumidor.close();
     }
 }

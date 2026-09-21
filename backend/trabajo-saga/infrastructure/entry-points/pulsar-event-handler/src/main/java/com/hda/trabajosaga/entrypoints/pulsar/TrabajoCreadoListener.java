@@ -25,6 +25,7 @@ public class TrabajoCreadoListener {
     private final OrquestarSagaTrabajoUseCase useCase;
     private final String topico;
     private final String suscripcion;
+    private final ConsumoEnVueloTracker enVuelo = new ConsumoEnVueloTracker();
     private Consumer<TrabajoCreado> consumidor;
 
     public TrabajoCreadoListener(
@@ -46,6 +47,7 @@ public class TrabajoCreadoListener {
     }
 
     private void procesar(Consumer<TrabajoCreado> consumer, Message<TrabajoCreado> mensaje) {
+        enVuelo.iniciar();
         TrabajoCreado entrada = mensaje.getValue();
         TrabajoCreadoComando comando = new TrabajoCreadoComando(
                 UUID.fromString(entrada.getTrabajoId()), UUID.fromString(entrada.getClienteId()),
@@ -53,11 +55,13 @@ public class TrabajoCreadoListener {
         useCase.manejarTrabajoCreado(comando)
                 .doOnSuccess(ignored -> consumer.acknowledgeAsync(mensaje))
                 .doOnError(ignored -> consumer.negativeAcknowledge(mensaje))
+                .doFinally(signal -> enVuelo.finalizar())
                 .subscribe();
     }
 
     @PreDestroy
     void detener() throws PulsarClientException {
+        enVuelo.esperarDrenaje("TrabajoCreadoListener");
         if (consumidor != null) consumidor.close();
     }
 }

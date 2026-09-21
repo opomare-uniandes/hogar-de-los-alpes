@@ -15,6 +15,9 @@ spec:
       labels:
         app: trabajo-saga-service
     spec:
+      # Da tiempo a drenar mensajes Pulsar en vuelo (ver ConsumoEnVueloTracker, hasta 25s)
+      # antes de que Kubernetes mate el pod, necesario ahora que KEDA puede escalar hacia abajo.
+      terminationGracePeriodSeconds: 40
       containers:
         - name: trabajo-saga-service
           image: hda/trabajo-saga-service:local
