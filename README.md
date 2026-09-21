@@ -262,13 +262,13 @@ El proyecto usa **Spring Boot 4.1.1**. Esa versión de su plugin de Gradle exige
 
 0. Credenciales por variables de entorno. Las credenciales de Postgres **no están
    hardcodeadas** en el repositorio: se leen de variables de entorno, tanto en
-   `backend/docker-compose.yml` (para inicializar el contenedor) como en
+   `deploy/docker-compose/docker-compose.yml` (para inicializar el contenedor) como en
    `application-trabajos.yml`/`application-usuarios.yml` (para la conexión R2DBC de cada
    servicio). Copia la plantilla versionada y ajústala con tus propios valores:
 
 ```shell
-   cp backend/.env.example backend/.env
-   # edita backend/.env y cambia al menos POSTGRES_PASSWORD
+   cp deploy/docker-compose/.env.example deploy/docker-compose/.env
+   # edita deploy/docker-compose/.env y cambia al menos POSTGRES_PASSWORD
    ```
 
    El archivo `.env` real está en `.gitignore` (nunca se sube); solo se versiona la
