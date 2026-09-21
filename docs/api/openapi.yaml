@@ -8,8 +8,8 @@ info:
 servers:
   - url: http://localhost:8090
     description: Docker Compose local
-  - url: https://REEMPLAZAR-CON-URL-DESPLEGADA
-    description: Despliegue de la entrega
+  - url: https://hda-entrega5-bff-5gr56g469x67h45wp-8090.app.github.dev
+    description: Despliegue académico en GitHub Codespaces (disponible mientras el Codespace esté encendido)
 tags:
   - name: Trabajos
   - name: Sagas

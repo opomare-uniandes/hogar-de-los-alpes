@@ -8,8 +8,8 @@ los seis servicios de negocio.
 
 1. Importe `HogarDeLosAlpes-BFF.postman_collection.json` en Postman.
 2. Importe `Local.postman_environment.json` o `Cloud.postman_environment.json`.
-3. Para Codespaces, reemplace `baseUrl` con la URL pública que imprime
-   `./deploy/codespaces/start.sh`; no agregue `/` al final.
+3. El ambiente Cloud ya contiene la URL del Codespace verificado. Si se crea otro
+   Codespace, reemplace `baseUrl` con la nueva URL pública; no agregue `/` al final.
 4. Ejecute primero `00 - Disponibilidad` y después las carpetas numeradas.
 
 ## Demostración de la saga

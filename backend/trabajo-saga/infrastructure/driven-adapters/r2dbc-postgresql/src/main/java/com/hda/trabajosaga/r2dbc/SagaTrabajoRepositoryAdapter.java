@@ -39,7 +39,13 @@ public class SagaTrabajoRepositoryAdapter implements SagaTrabajoRepository {
         DatabaseClient.GenericExecuteSpec upsertSaga = databaseClient.sql("""
                         INSERT INTO saga_trabajo (id, trabajo_id, cliente_id, estado, fecha_inicio, fecha_fin)
                         VALUES (:id, :trabajoId, :clienteId, :estado, :fechaInicio, :fechaFin)
-                        ON CONFLICT (id) DO UPDATE SET estado = EXCLUDED.estado, fecha_fin = EXCLUDED.fecha_fin
+                        ON CONFLICT (id) DO UPDATE SET
+                            estado = CASE
+                                WHEN saga_trabajo.estado IN ('COMPLETADA', 'CANCELADA')
+                                    THEN saga_trabajo.estado
+                                ELSE EXCLUDED.estado
+                            END,
+                            fecha_fin = COALESCE(saga_trabajo.fecha_fin, EXCLUDED.fecha_fin)
                         """)
                 .bind("id", saga.getId())
                 .bind("trabajoId", saga.getTrabajoId())

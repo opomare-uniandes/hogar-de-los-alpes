@@ -17,6 +17,11 @@ reglas de dominio ni coordina la saga.
 
 ## API pública (BFF)
 
+**Despliegue académico verificado:**
+[https://hda-entrega5-bff-5gr56g469x67h45wp-8090.app.github.dev](https://hda-entrega5-bff-5gr56g469x67h45wp-8090.app.github.dev)
+(disponible mientras el Codespace esté encendido; consulte el
+[registro de despliegue](docs/deployment/ENTREGA.md)).
+
 | Operación | Ruta |
 | --- | --- |
 | Salud | `GET /actuator/health` |
