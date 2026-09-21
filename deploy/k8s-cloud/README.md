@@ -1,146 +1,90 @@
-# Kubernetes en AWS (EKS)
+# Despliegue evaluable en AWS EKS
 
-Despliega los 4 servicios sobre la infraestructura AWS creada por
-[`../terraform/`](../terraform/) (EKS, RDS, ElastiCache, ECR) con el mismo autoescalado por
-backlog de Pulsar (KEDA) que el flujo local, mas un ALB real (Gateway API) para acceso
-externo. Para desarrollo local sin AWS, ver [`../k8s/README.md`](../k8s/README.md) — esta
-carpeta es un flujo separado, no reemplaza al local.
+Despliega los seis servicios de negocio y el BFF sobre EKS. PostgreSQL se ejecuta en RDS,
+Redis en ElastiCache y Pulsar dentro del clúster. Un ALB publica únicamente el BFF; el
+resto de servicios conserva direcciones privadas `ClusterIP`.
 
-## Contenido
+## Topología desplegada
 
-```
-k8s-cloud/
-├── apply.sh                      Renderiza los __PLACEHOLDER__ con outputs de Terraform y aplica todo
-├── base/
-│   ├── 00-namespace-config.yaml    Namespace hda + ConfigMap hda-endpoints (RDS/Redis/Pulsar)
-│   ├── 01-secrets.yaml             Secret postgres-credentials (password generada por Terraform)
-│   ├── 02-storageclass.yaml        StorageClass gp3 (para el volumen de Pulsar)
-│   ├── 03-postgres-bootstrap.yaml  Job: crea hda_usuarios en RDS si no existe
-│   └── 04-pulsar.yaml              Pulsar standalone + PVC gp3 + Job que crea tenant/namespaces
-├── apps/                          Los 4 servicios (imagenes de ECR)
-│   ├── 20-trabajos-service.yaml
-│   ├── 21-integracion-service.yaml
-│   ├── 22-notificaciones-service.yaml
-│   ├── 23-usuarios-service.yaml
-│   └── 24-gateway.yaml             GatewayClass/Gateway/HTTPRoute (ALB, no Ingress)
-└── autoscaling/
-    └── 30-scaledobjects.yaml       KEDA ScaledObjects (identico al flujo local)
+```text
+Internet -> ALB/Gateway -> bff-service (2 réplicas)
+                             |-> trabajos-service -> RDS/hda_trabajos
+                             `-> trabajo-saga-service -> RDS/hda_trabajo_saga
+
+Pulsar -> integracion-service
+       -> notificaciones-service -> usuarios-service -> RDS/hda_usuarios
+       -> proveedor-service -> RDS/hda_proveedor
+       -> trabajo-saga-service
 ```
 
 ## Requisitos
 
-AWS CLI, kubectl, Terraform, Docker, Python 3 (usado por `apply.sh` para leer el output JSON
-de ECR).
+- AWS CLI con sesión válida.
+- Terraform, kubectl, Docker y Python 3.
+- Permisos para EKS, ECR, RDS, ElastiCache, VPC, IAM y ALB.
 
-```bash
-aws sso login --profile <your-aws-profile>
-```
-
-## Paso 0: aplicar la infraestructura
-
-**Sin esto, todo lo demas falla.** [`../terraform/`](../terraform/) crea la VPC, EKS, RDS,
-ElastiCache, ECR y los addons (KEDA + AWS Load Balancer Controller) — nada de esto se aplica
-solo, y `apply.sh` (paso 2) depende de sus outputs.
+## 1. Crear o actualizar infraestructura
 
 ```bash
 terraform -chdir=deploy/terraform init
+terraform -chdir=deploy/terraform plan
 terraform -chdir=deploy/terraform apply
 ```
 
-Un solo comando: todos los modulos estan wireados en `main.tf`. Tarda ~20-25 min (EKS es lo
-que mas tarda).
+Terraform crea siete repositorios ECR: `trabajos`, `integracion`, `notificaciones`,
+`usuarios`, `proveedor`, `trabajo-saga` y `bff`.
 
-## Paso 1: imagenes en ECR
-
-Una vez por cambio de codigo. Primero, build local:
+## 2. Construir y publicar imágenes
 
 ```bash
-docker build -t hda/trabajos-service:local       --build-arg SERVICE=trabajos       -f deploy/docker-compose/Dockerfile backend
-docker build -t hda/integracion-service:local    --build-arg SERVICE=integracion    -f deploy/docker-compose/Dockerfile backend
-docker build -t hda/notificaciones-service:local --build-arg SERVICE=notificaciones -f deploy/docker-compose/Dockerfile backend
-docker build -t hda/usuarios-service:local       --build-arg SERVICE=usuarios       -f deploy/docker-compose/Dockerfile backend
+chmod +x deploy/k8s-cloud/build-and-push.sh deploy/k8s-cloud/apply.sh
+./deploy/k8s-cloud/build-and-push.sh
 ```
 
-Despues, tag + push a ECR:
+El script obtiene región, perfil y direcciones de ECR desde los outputs de Terraform.
 
-```bash
-aws ecr get-login-password --region us-east-1 --profile <your-aws-profile> \
-  | docker login --username AWS --password-stdin <account-id>.dkr.ecr.us-east-1.amazonaws.com
-
-docker tag hda/trabajos-service:local       <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/trabajos-service:latest
-docker tag hda/integracion-service:local    <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/integracion-service:latest
-docker tag hda/notificaciones-service:local <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/notificaciones-service:latest
-docker tag hda/usuarios-service:local       <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/usuarios-service:latest
-
-docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/trabajos-service:latest
-docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/integracion-service:latest
-docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/notificaciones-service:latest
-docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/usuarios-service:latest
-```
-
-(`<account-id>` sale de `terraform -chdir=../terraform output ecr_repository_urls`.)
-
-## Paso 2: desplegar
+## 3. Desplegar
 
 ```bash
 ./deploy/k8s-cloud/apply.sh
 ```
 
-Esto: apunta `kubectl` al cluster (`aws eks update-kubeconfig`), renderiza los
-`__PLACEHOLDER__` (endpoints de RDS/ElastiCache, password de Postgres, URLs de imagen) desde
-`terraform output`, aplica `base/` → espera a Pulsar → aplica `apps/` → aplica
-`autoscaling/`, y al final imprime la URL del ALB.
+El script:
 
-## Paso 3: actualizar una imagen
+1. Configura `kubectl` para el EKS.
+2. Renderiza endpoints y secretos en un directorio temporal.
+3. Crea las bases auxiliares en RDS.
+4. Espera a Pulsar y despliega los siete servicios.
+5. Aplica KEDA y obtiene la dirección pública del ALB.
 
-Repetir el [Paso 1](#paso-1-imagenes-en-ecr).
-
-Asociar `kubectl` al cluster:
+## 4. Evidencia y prueba
 
 ```bash
-kubectl config current-context
+kubectl get deployments,pods,services -n hda
+kubectl get gateway,httproute -n hda
+kubectl get scaledobjects -n hda
 
-aws eks update-kubeconfig \
-  --name $(terraform -chdir=deploy/terraform output -raw eks_cluster_name) \
-  --region $(terraform -chdir=deploy/terraform output -raw aws_region) \
-  --profile <your-aws-profile>
-
-kubectl get nodes
+export BFF_URL="http://$(kubectl get gateway hda-gateway -n hda -o jsonpath='{.status.addresses[0].value}')"
+curl "$BFF_URL/actuator/health"
 ```
 
-Forzar un rollout para el servicio que haya cambiado:
+Actualice `baseUrl` en `docs/postman/Cloud.postman_environment.json` y ejecute la colección.
+La entrega no debe anunciar una URL hasta que `health` y la colección respondan correctamente.
+
+## Actualizar una versión
 
 ```bash
-kubectl rollout restart deployment/trabajos-service -n hda
-kubectl rollout restart deployment/integracion-service -n hda
-kubectl rollout restart deployment/notificaciones-service -n hda
-kubectl rollout restart deployment/usuarios-service -n hda
+./deploy/k8s-cloud/build-and-push.sh
+kubectl rollout restart deployment -n hda
+kubectl rollout status deployment/bff-service -n hda
 ```
 
-Eso recrea los Pods; `imagePullPolicy: Always` hace que el Kubelet vuelva a pedir `:latest`
-a ECR en ese momento (ahi si trae la version nueva). Verificar con:
+## Eliminación segura
+
+El Gateway crea un ALB fuera del estado de Terraform. Elimínelo primero para evitar
+recursos huérfanos y cargos:
 
 ```bash
-kubectl rollout status deployment/trabajos-service -n hda
-```
-
-## Verificar
-
-```bash
-kubectl get pods -n hda
-kubectl get scaledobject -n hda
-kubectl get gateway hda-gateway -n hda
-```
-
-## Teardown
-
-Borra primero los objetos de Kubernetes que crean recursos AWS fuera de Terraform (el ALB del
-Gateway), luego destruye la infraestructura:
-
-```bash
-kubectl delete -f deploy/k8s-cloud/apps/24-gateway.yaml
+kubectl delete -f deploy/k8s-cloud/apps/27-gateway.yaml
 terraform -chdir=deploy/terraform destroy
 ```
-
-> Si se salta el `kubectl delete` del Gateway, el ALB que creo el AWS Load Balancer Controller
-> queda huerfano en AWS (Terraform no lo conoce, no lo puede destruir) y sigue facturando.

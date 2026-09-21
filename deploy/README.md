@@ -1,55 +1,29 @@
 # Despliegue — Hogar de los Alpes
 
-Formas aisladas de levantar el backend, de local a AWS.
-
-```
-deploy/
-├── docker-compose/            Entorno local rapido (infra + 4 servicios)
-│   ├── README.md              Guia del flujo Docker Compose
-│   ├── docker-compose.yml
-│   ├── Dockerfile             Imagen compartida por los 4 servicios (selecciona el jar)
-│   ├── .env.example           Plantilla de variables (copiar a .env)
-│   └── postgres-init/         Script que crea la base hda_usuarios
-├── k8s/                       Despliegue Kubernetes local con autoescalado por KEDA
-│   ├── README.md              Guia del flujo Kubernetes + KEDA
-│   ├── kind-config.yaml       Cluster local de Kind (NodePort 30081 -> localhost:8081)
-│   ├── base/                  Infra: namespace/config, secrets, Postgres, Redis, Pulsar
-│   ├── apps/                  Los 4 servicios (Deployment + Service)
-│   └── autoscaling/           KEDA ScaledObjects (Pulsar backlog)
-├── terraform/                 Infraestructura AWS (VPC, EKS, RDS, ElastiCache, ECR, KEDA +
-│                               AWS Load Balancer Controller) para el PoC en la nube
-└── k8s-cloud/                 Los 4 servicios + Pulsar sobre ese EKS, mismo autoescalado
-    ├── README.md              Guia del flujo AWS (EKS + Gateway API/ALB)
-    ├── apply.sh               Renderiza endpoints desde `terraform output` y aplica todo
-    ├── base/                  Infra: namespace/config, secrets, StorageClass, bootstrap RDS, Pulsar
-    ├── apps/                  Los 4 servicios (imagenes ECR) + Gateway API (ALB)
-    └── autoscaling/           KEDA ScaledObjects (identico al flujo local)
-```
-
-## Cual usar
-
-| Flujo | Para que | Guia |
+| Flujo | Alcance | Guía |
 | --- | --- | --- |
-| **Docker Compose** | Pruebas rapidas locales (infra + 4 servicios en un comando) | [`docker-compose/README.md`](docker-compose/README.md) |
-| **Kubernetes + KEDA** | Autoescalado por backlog de topico de Pulsar, local | [`k8s/README.md`](k8s/README.md) |
-| **AWS (Terraform + EKS)** | El mismo autoescalado, en la nube, con un ALB real | [`k8s-cloud/README.md`](k8s-cloud/README.md) |
+| Docker Compose | Infraestructura, seis servicios y BFF para validación local | [`docker-compose/README.md`](docker-compose/README.md) |
+| GitHub Codespaces | Despliegue académico temporal y público, cubierto por la cuota gratuita personal | [`codespaces/README.md`](codespaces/README.md) |
+| Kubernetes local | Laboratorio previo de autoescalado de la Entrega 4 | [`k8s/README.md`](k8s/README.md) |
+| AWS EKS | Alternativa productiva con costo: seis servicios, BFF, ALB, RDS, ElastiCache y Pulsar | [`k8s-cloud/README.md`](k8s-cloud/README.md) |
 
-## Parametrizacion (comun a los tres flujos)
+## Regla de exposición
 
-Los servicios ya no tienen hosts/credenciales hardcodeados: leen variables de entorno con
-valores por defecto para desarrollo local (ver `backend/<servicio>/application/src/main/resources/application.yml`).
+En nube solamente `bff-service` se publica mediante el ALB. Los seis servicios de negocio
+son internos y se comunican principalmente mediante Pulsar. El BFF realiza únicamente las
+consultas y delegaciones HTTP necesarias para presentar el API del consumidor; no contiene
+reglas de dominio ni coordina la saga.
 
-| Variable | Uso | Default |
+## Variables principales
+
+| Variable | Consumidor | Propósito |
 | --- | --- | --- |
-| `POSTGRES_HOST` | Host de Postgres | `localhost` |
-| `REDIS_HOST` | Host de Redis | `localhost` |
-| `PULSAR_SERVICE_URL` | Broker binario de Pulsar | `pulsar://localhost:6650` |
-| `PULSAR_ADMIN_URL` | Admin REST de Pulsar | `http://localhost:8080` |
-| `USUARIOS_SERVICE_BASE_URL` | notificaciones -> usuarios (sincrono) | `http://localhost:8084` |
+| `TRABAJOS_SERVICE_BASE_URL` | BFF | Dirección interna de Gestión de Trabajos |
+| `TRABAJO_SAGA_SERVICE_BASE_URL` | BFF | Dirección interna del Saga Log |
+| `BFF_UPSTREAM_TIMEOUT` | BFF | Límite para llamadas internas |
+| `USUARIOS_SERVICE_BASE_URL` | Notificaciones | Consulta síncrona de contacto |
+| `PULSAR_SERVICE_URL` | Servicios orientados a eventos | Comunicación binaria con Pulsar |
+| `POSTGRES_*_DB` | Servicios con persistencia | Base lógica propia por servicio |
 
-- En **Docker Compose** apuntan a los nombres de servicio (`postgres`, `redis`, `pulsar`,
-  `usuarios-service`) — ver la guia de compose.
-- En **Kubernetes** salen del ConfigMap `hda-endpoints` y el Secret `postgres-credentials`
-  (`k8s/base/`) — ver la guia de k8s.
-- En **AWS** salen del mismo ConfigMap/Secret, pero renderizados por `apply.sh` con los
-  endpoints reales de RDS/ElastiCache (`k8s-cloud/base/`) — ver la guia de k8s-cloud.
+El contrato público está en [`../docs/api/openapi.yaml`](../docs/api/openapi.yaml) y la
+colección ejecutable en [`../docs/postman`](../docs/postman/README.md).

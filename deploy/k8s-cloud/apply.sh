@@ -24,6 +24,9 @@ TRABAJOS_IMAGE="$(echo "$ECR_JSON" | python3 -c 'import json,sys; print(json.loa
 INTEGRACION_IMAGE="$(echo "$ECR_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["integracion-service"] + ":latest")')"
 NOTIFICACIONES_IMAGE="$(echo "$ECR_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["notificaciones-service"] + ":latest")')"
 USUARIOS_IMAGE="$(echo "$ECR_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["usuarios-service"] + ":latest")')"
+PROVEEDOR_IMAGE="$(echo "$ECR_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["proveedor-service"] + ":latest")')"
+TRABAJO_SAGA_IMAGE="$(echo "$ECR_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["trabajo-saga-service"] + ":latest")')"
+BFF_IMAGE="$(echo "$ECR_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["bff-service"] + ":latest")')"
 
 echo "Cluster: $CLUSTER_NAME"
 aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION" --profile "$AWS_PROFILE"
@@ -33,18 +36,37 @@ trap 'rm -rf "$RENDER_DIR"' EXIT
 
 cp -r "$SCRIPT_DIR"/base "$SCRIPT_DIR"/apps "$SCRIPT_DIR"/autoscaling "$RENDER_DIR"/
 
-find "$RENDER_DIR" -type f -name '*.yaml' -exec sed -i \
-  -e "s#__RDS_ENDPOINT__#${RDS_ENDPOINT}#g" \
-  -e "s#__REDIS_ENDPOINT__#${REDIS_ENDPOINT}#g" \
-  -e "s#__POSTGRES_PASSWORD__#${POSTGRES_PASSWORD}#g" \
-  -e "s#__TRABAJOS_IMAGE__#${TRABAJOS_IMAGE}#g" \
-  -e "s#__INTEGRACION_IMAGE__#${INTEGRACION_IMAGE}#g" \
-  -e "s#__NOTIFICACIONES_IMAGE__#${NOTIFICACIONES_IMAGE}#g" \
-  -e "s#__USUARIOS_IMAGE__#${USUARIOS_IMAGE}#g" \
-  {} +
+# Python evita las diferencias entre GNU sed y BSD sed (macOS).
+export RENDER_DIR RDS_ENDPOINT REDIS_ENDPOINT POSTGRES_PASSWORD
+export TRABAJOS_IMAGE INTEGRACION_IMAGE NOTIFICACIONES_IMAGE USUARIOS_IMAGE
+export PROVEEDOR_IMAGE TRABAJO_SAGA_IMAGE BFF_IMAGE
+python3 - <<'PY'
+import os
+from pathlib import Path
+
+replacements = {
+    "__RDS_ENDPOINT__": os.environ["RDS_ENDPOINT"],
+    "__REDIS_ENDPOINT__": os.environ["REDIS_ENDPOINT"],
+    "__POSTGRES_PASSWORD__": os.environ["POSTGRES_PASSWORD"],
+    "__TRABAJOS_IMAGE__": os.environ["TRABAJOS_IMAGE"],
+    "__INTEGRACION_IMAGE__": os.environ["INTEGRACION_IMAGE"],
+    "__NOTIFICACIONES_IMAGE__": os.environ["NOTIFICACIONES_IMAGE"],
+    "__USUARIOS_IMAGE__": os.environ["USUARIOS_IMAGE"],
+    "__PROVEEDOR_IMAGE__": os.environ["PROVEEDOR_IMAGE"],
+    "__TRABAJO_SAGA_IMAGE__": os.environ["TRABAJO_SAGA_IMAGE"],
+    "__BFF_IMAGE__": os.environ["BFF_IMAGE"],
+}
+
+for path in Path(os.environ["RENDER_DIR"]).rglob("*.yaml"):
+    content = path.read_text()
+    for placeholder, value in replacements.items():
+        content = content.replace(placeholder, value)
+    path.write_text(content)
+PY
 
 kubectl apply -f "$RENDER_DIR/base"
 kubectl wait --for=condition=ready pod -l app=pulsar -n hda --timeout=180s
+kubectl wait --for=condition=complete job/postgres-databases-bootstrap-v2 -n hda --timeout=180s
 kubectl apply -f "$RENDER_DIR/apps"
 kubectl apply -f "$RENDER_DIR/autoscaling"
 
@@ -57,7 +79,8 @@ echo "Esperando la URL del ALB (puede tardar 1-2 min tras el primer apply)..."
 for _ in $(seq 1 24); do
   ADDR=$(kubectl get gateway hda-gateway -n hda -o jsonpath='{.status.addresses[0].value}' 2>/dev/null || true)
   if [ -n "$ADDR" ]; then
-    echo "Gateway listo: http://$ADDR/trabajos"
+    echo "BFF listo: http://$ADDR"
+    echo "Health:    http://$ADDR/actuator/health"
     exit 0
   fi
   sleep 5

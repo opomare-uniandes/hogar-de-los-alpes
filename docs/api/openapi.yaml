@@ -1,0 +1,264 @@
+openapi: 3.1.0
+info:
+  title: Hogar de los Alpes - BFF API
+  version: 1.0.0
+  description: |
+    Contrato HTTP público de Hogar de los Alpes. El BFF es el único punto de entrada;
+    delega comandos a Gestión de Trabajos y compone consultas con el Saga Log.
+servers:
+  - url: http://localhost:8090
+    description: Docker Compose local
+  - url: https://REEMPLAZAR-CON-URL-DESPLEGADA
+    description: Despliegue de la entrega
+tags:
+  - name: Trabajos
+  - name: Sagas
+  - name: Operación
+paths:
+  /actuator/health:
+    get:
+      tags: [Operación]
+      summary: Consultar salud del BFF
+      operationId: health
+      responses:
+        "200":
+          description: BFF disponible
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/v1/trabajos:
+    post:
+      tags: [Trabajos]
+      summary: Registrar un trabajo
+      description: Envía el comando de creación a Gestión de Trabajos. La saga continúa de forma asíncrona.
+      operationId: crearTrabajo
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CrearTrabajoRequest"
+            examples:
+              caminoExitoso:
+                value:
+                  clienteId: 11111111-1111-1111-1111-111111111113
+                  categoriaServicio: plomeria
+                  urgencia: MEDIA
+                  ciudad: Bogota
+                  origen: MARKETPLACE
+                  partnerId: null
+                  moneda: COP
+              caminoCompensado:
+                value:
+                  clienteId: 11111111-1111-1111-1111-111111111111
+                  categoriaServicio: plomeria
+                  urgencia: ALTA
+                  ciudad: Medellin
+                  origen: MARKETPLACE
+                  partnerId: null
+                  moneda: COP
+      responses:
+        "201":
+          description: Trabajo registrado; los procesos posteriores son asíncronos
+          headers:
+            Location:
+              schema: { type: string }
+            X-Correlation-Id:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trabajo"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /api/v1/trabajos/{trabajoId}:
+    get:
+      tags: [Trabajos]
+      summary: Consultar un trabajo
+      operationId: consultarTrabajo
+      parameters:
+        - $ref: "#/components/parameters/TrabajoId"
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "200":
+          description: Trabajo encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trabajo"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+  /api/v1/trabajos/{trabajoId}/seguimiento:
+    get:
+      tags: [Trabajos, Sagas]
+      summary: Consultar trabajo y avance de su saga
+      description: Compone la información de Gestión de Trabajos con el Saga Log. La saga puede estar todavía pendiente.
+      operationId: consultarSeguimiento
+      parameters:
+        - $ref: "#/components/parameters/TrabajoId"
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "200":
+          description: Estado compuesto
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeguimientoTrabajo"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+  /api/v1/sagas/trabajos/{trabajoId}:
+    get:
+      tags: [Sagas]
+      summary: Consultar Saga Log por trabajo
+      operationId: consultarSagaPorTrabajo
+      parameters:
+        - $ref: "#/components/parameters/TrabajoId"
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "200":
+          description: Saga encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SagaTrabajo"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/sagas/{sagaId}:
+    get:
+      tags: [Sagas]
+      summary: Consultar Saga Log por identificador
+      operationId: consultarSaga
+      parameters:
+        - name: sagaId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "200":
+          description: Saga encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SagaTrabajo"
+        "404":
+          $ref: "#/components/responses/NotFound"
+components:
+  parameters:
+    TrabajoId:
+      name: trabajoId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      description: Identificador opcional de trazabilidad. El BFF genera uno cuando no se envía.
+      schema: { type: string }
+  schemas:
+    CrearTrabajoRequest:
+      type: object
+      required: [clienteId, categoriaServicio, urgencia, ciudad, origen, moneda]
+      properties:
+        clienteId: { type: string, format: uuid }
+        categoriaServicio: { type: string, minLength: 1 }
+        urgencia: { type: string, enum: [BAJA, MEDIA, ALTA, CRITICA] }
+        ciudad: { type: string, minLength: 1 }
+        origen: { type: string, enum: [MARKETPLACE, SINIESTRO, SUSCRIPCION] }
+        partnerId:
+          oneOf:
+            - { type: string, format: uuid }
+            - { type: "null" }
+          description: Obligatorio en SINIESTRO y SUSCRIPCION; nulo en MARKETPLACE.
+        moneda: { type: string, enum: [COP, MXN, BRL, ARS] }
+    Trabajo:
+      allOf:
+        - $ref: "#/components/schemas/CrearTrabajoRequest"
+        - type: object
+          required: [id, estado, fechaCreacion]
+          properties:
+            id: { type: string, format: uuid }
+            estado: { type: string, examples: [CREADO, ASIGNADO, CANCELADO] }
+            fechaCreacion: { type: string, format: date-time }
+    PasoSaga:
+      type: object
+      required: [paso, resultado, ocurridoEn]
+      properties:
+        paso:
+          type: string
+          enum: [RESERVAR_PROVEEDOR, ASIGNAR_TRABAJO, NOTIFICAR, COMPENSAR_CANCELAR_TRABAJO, NOTIFICAR_FALLO]
+        resultado: { type: string, enum: [OK, FALLO] }
+        detalle: { type: string }
+        ocurridoEn: { type: string, format: date-time }
+    SagaTrabajo:
+      type: object
+      required: [sagaId, trabajoId, estado, fechaInicio, pasos]
+      properties:
+        sagaId: { type: string, format: uuid }
+        trabajoId: { type: string, format: uuid }
+        estado:
+          type: string
+          enum: [INICIADA, PROVEEDOR_RESERVADO, ASIGNADA, COMPENSANDO, CANCELADA, COMPLETADA]
+        fechaInicio: { type: string, format: date-time }
+        fechaFin:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: "null" }
+        pasos:
+          type: array
+          items: { $ref: "#/components/schemas/PasoSaga" }
+    SeguimientoTrabajo:
+      type: object
+      required: [trabajo, estadoSeguimiento]
+      properties:
+        trabajo: { $ref: "#/components/schemas/Trabajo" }
+        saga:
+          oneOf:
+            - { $ref: "#/components/schemas/SagaTrabajo" }
+            - { type: "null" }
+        estadoSeguimiento:
+          type: string
+          description: Estado de la saga o SAGA_PENDIENTE cuando el evento todavía no ha sido procesado.
+    ApiError:
+      type: object
+      required: [timestamp, status, error, detail, source]
+      properties:
+        timestamp: { type: string, format: date-time }
+        status: { type: integer }
+        error: { type: string }
+        detail: { type: string }
+        source: { type: string }
+  responses:
+    BadRequest:
+      description: Solicitud inválida
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+    NotFound:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+    UpstreamError:
+      description: Un servicio interno rechazó o no pudo procesar la solicitud
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+    Unavailable:
+      description: Un servicio interno no está disponible
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }

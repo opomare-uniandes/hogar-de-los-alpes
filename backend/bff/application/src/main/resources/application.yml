@@ -1,0 +1,28 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: bff-service
+
+hda:
+  services:
+    trabajos-base-url: ${TRABAJOS_SERVICE_BASE_URL:http://localhost:8081}
+    saga-base-url: ${TRABAJO_SAGA_SERVICE_BASE_URL:http://localhost:8086}
+    timeout: ${BFF_UPSTREAM_TIMEOUT:3s}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info,metrics"
+  endpoint:
+    health:
+      show-details: "always"
+  otlp:
+    metrics:
+      export:
+        enabled: "${OTEL_COLLECTOR_ENABLED:false}"
+  tracing:
+    export:
+      enabled: "${OTEL_TRACING_ENABLED:false}"

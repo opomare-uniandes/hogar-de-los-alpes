@@ -1,6 +1,6 @@
 import type { CrearTrabajoRequest, Trabajo } from '../types/trabajo'
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '')
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '/api/v1').replace(/\/$/, '')
 
 export class ApiError extends Error {
   readonly status: number
@@ -24,7 +24,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
       },
     })
   } catch {
-    throw new ApiError('No pudimos conectarnos con el servicio. Verifica que trabajos-service esté disponible.', 0)
+    throw new ApiError('No pudimos conectarnos con el sistema. Verifica que el BFF esté disponible.', 0)
   }
 
   if (!response.ok) {

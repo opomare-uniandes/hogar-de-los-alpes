@@ -1,0 +1,22 @@
+{
+  "name": "Hogar de los Alpes - Entrega 5",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "dockerDashComposeVersion": "v2"
+    }
+  },
+  "forwardPorts": [8090],
+  "portsAttributes": {
+    "8090": {
+      "label": "Hogar de los Alpes - BFF",
+      "onAutoForward": "notify",
+      "protocol": "http"
+    }
+  },
+  "otherPortsAttributes": {
+    "onAutoForward": "ignore"
+  },
+  "postCreateCommand": "chmod +x deploy/codespaces/start.sh deploy/codespaces/stop.sh"
+}

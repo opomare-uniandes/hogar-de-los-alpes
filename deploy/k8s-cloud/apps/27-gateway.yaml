@@ -33,27 +33,26 @@ spec:
         namespaces:
           from: Same
 ---
-# targetType: ip -- trabajos-service es ClusterIP (sin NodePort); el default del LBC
-# ("instance") requeriria un NodePort. "ip" apunta directo a los pods via la ENI de VPC CNI.
+# El BFF es el unico servicio expuesto. Los seis servicios de negocio permanecen ClusterIP.
 apiVersion: gateway.k8s.aws/v1
 kind: TargetGroupConfiguration
 metadata:
-  name: trabajos-service-tgconfig
+  name: bff-service-tgconfig
   namespace: hda
 spec:
   targetReference:
-    name: trabajos-service
+    name: bff-service
   defaultConfiguration:
     targetType: ip
     healthCheckConfig:
-      healthCheckPath: /
+      healthCheckPath: /actuator/health
       matcher:
-        httpCode: "200-499"
+        httpCode: "200"
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: trabajos-service-route
+  name: bff-service-route
   namespace: hda
 spec:
   parentRefs:
@@ -62,40 +61,7 @@ spec:
     - matches:
         - path:
             type: PathPrefix
-            value: /trabajos
+            value: /
       backendRefs:
-        - name: trabajos-service
-          port: 8081
----
-
-apiVersion: gateway.k8s.aws/v1
-kind: TargetGroupConfiguration
-metadata:
-  name: usuarios-service-tgconfig
-  namespace: hda
-spec:
-  targetReference:
-    name: usuarios-service
-  defaultConfiguration:
-    targetType: ip
-    healthCheckConfig:
-      healthCheckPath: /
-      matcher:
-        httpCode: "200-499"
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: usuarios-service-route
-  namespace: hda
-spec:
-  parentRefs:
-    - name: hda-gateway
-  rules:
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /usuarios
-      backendRefs:
-        - name: usuarios-service
-          port: 8084
+        - name: bff-service
+          port: 8080
