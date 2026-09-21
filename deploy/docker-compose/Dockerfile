@@ -14,7 +14,8 @@ FROM bellsoft/liberica-openjdk-debian:25 AS gradle-builder
 WORKDIR /build
 COPY . .
 ARG SERVICE
-RUN chmod +x gradlew && \
+RUN --mount=type=cache,target=/root/.gradle \
+    chmod +x gradlew && \
     ./gradlew --no-daemon ":${SERVICE}-application:bootJar"
 
 FROM bellsoft/liberica-openjre-debian:25-cds AS builder

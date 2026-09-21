@@ -15,12 +15,34 @@ fi
 export COMPOSE_PARALLEL_LIMIT="${COMPOSE_PARALLEL_LIMIT:-1}"
 
 echo "Construyendo el entorno (la primera ejecución puede tardar varios minutos)..."
-docker compose \
-  --project-name "${PROJECT_NAME}" \
-  --env-file "${COMPOSE_DIR}/.env" \
-  -f "${BASE_COMPOSE}" \
-  -f "${OVERRIDE_COMPOSE}" \
-  up -d --build
+COMPOSE=(
+  docker compose
+  --project-name "${PROJECT_NAME}"
+  --env-file "${COMPOSE_DIR}/.env"
+  -f "${BASE_COMPOSE}"
+  -f "${OVERRIDE_COMPOSE}"
+)
+
+# Un Codespace básico cuenta con 8 GB de memoria. Compose/BuildKit intenta
+# construir todos los servicios Spring en paralelo y siete procesos Gradle
+# simultáneos pueden agotar esa memoria. La compilación secuencial mantiene el
+# despliegue dentro de la cuota gratuita y reutiliza la caché de Gradle/BuildKit.
+SERVICES=(
+  trabajos-service
+  integracion-service
+  notificaciones-service
+  usuarios-service
+  proveedor-service
+  trabajo-saga-service
+  bff-service
+)
+
+for service in "${SERVICES[@]}"; do
+  echo "Construyendo ${service}..."
+  "${COMPOSE[@]}" build "${service}"
+done
+
+"${COMPOSE[@]}" up -d --no-build
 
 echo "Esperando que el BFF responda..."
 for attempt in $(seq 1 90); do
