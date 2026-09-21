@@ -32,6 +32,14 @@ spec:
               valueFrom: { configMapKeyRef: { name: hda-endpoints, key: PULSAR_SERVICE_URL } }
             - name: PULSAR_ADMIN_URL
               valueFrom: { configMapKeyRef: { name: hda-endpoints, key: PULSAR_ADMIN_URL } }
+            - name: OTEL_COLLECTOR_HOST
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: OTEL_COLLECTOR_HOST } }
+            - name: OTEL_TRACING_SAMPLING
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: OTEL_TRACING_SAMPLING } }
+            - name: SERVICE_ENV
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: SERVICE_ENV } }
+            - name: OTEL_EXPORTER_OTLP_HEADERS_AUTHORIZATION
+              valueFrom: { secretKeyRef: { name: otel-credentials, key: OTEL_EXPORTER_OTLP_HEADERS_AUTHORIZATION } }
           resources:
             requests: { memory: "384Mi", cpu: "200m" }
             limits: { memory: "768Mi", cpu: "1" }

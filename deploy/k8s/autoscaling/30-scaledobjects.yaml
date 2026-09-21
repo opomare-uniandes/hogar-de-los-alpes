@@ -1,18 +1,4 @@
-# Autoescalado por backlog de topico (KEDA + trigger pulsar).
-# Mismo patron que poc-pulsar-scaling/k8s/03-scaled-object.yaml, aqui para los dos
-# consumidores del sistema. KEDA consulta el admin de Pulsar y mide el backlog POR
-# SUSCRIPCION (no por topico), asi que cada ScaledObject apunta a su propia subscription.
-#
-# adminURL usa el FQDN cross-namespace (pulsar.hda.svc.cluster.local): KEDA corre en el
-# namespace "keda", no en "hda", asi que el nombre corto "pulsar" no resuelve desde ahi
-# (un nombre corto solo resuelve dentro del mismo namespace). Las apps si usan el nombre
-# corto porque viven en "hda" (ver ConfigMap hda-endpoints).
-#
-# minReplicaCount: 1 (no 0) a proposito: la suscripcion Shared solo existe en Pulsar
-# cuando el consumidor se conecta la primera vez (@PulsarListener). Si arrancara en 0, la
-# suscripcion no existiria, el admin devolveria 404 y KEDA nunca escalaria (deadlock
-# chicken-and-egg descrito en el README del POC). Con 1 replica base la suscripcion queda
-# registrada y KEDA escala hacia arriba con el backlog.
+# Autoescalado por backlog de topico (KEDA + trigger pulsar)
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
@@ -22,7 +8,7 @@ spec:
   scaleTargetRef:
     name: integracion-service
   minReplicaCount: 1
-  maxReplicaCount: 10
+  maxReplicaCount: 4
   cooldownPeriod: 30
   pollingInterval: 15
   triggers:
@@ -42,7 +28,7 @@ spec:
   scaleTargetRef:
     name: notificaciones-service
   minReplicaCount: 1
-  maxReplicaCount: 10
+  maxReplicaCount: 4
   cooldownPeriod: 30
   pollingInterval: 15
   triggers:
@@ -51,4 +37,24 @@ spec:
         adminURL: http://pulsar.hda.svc.cluster.local:8080
         topic: persistent://hda/trabajos/trabajo-creado
         subscription: notificaciones-service-sub
+        msgBacklogThreshold: "10"
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: proveedor-service-scaler
+  namespace: hda
+spec:
+  scaleTargetRef:
+    name: proveedor-service
+  minReplicaCount: 1
+  maxReplicaCount: 4
+  cooldownPeriod: 30
+  pollingInterval: 15
+  triggers:
+    - type: pulsar
+      metadata:
+        adminURL: http://pulsar.hda.svc.cluster.local:8080
+        topic: persistent://hda/proveedor/reservar-proveedor-command
+        subscription: proveedor-reservar-command-sub
         msgBacklogThreshold: "10"

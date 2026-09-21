@@ -43,3 +43,89 @@ spec:
               else
                 echo "Base ${POSTGRES_USUARIOS_DB} ya existe."
               fi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-proveedor-db-bootstrap
+  namespace: hda
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: bootstrap
+          image: postgres:18-alpine
+          env:
+            - name: POSTGRES_HOST
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: POSTGRES_HOST } }
+            - name: POSTGRES_PORT
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: POSTGRES_PORT } }
+            - name: POSTGRES_PROVEEDOR_DB
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: POSTGRES_PROVEEDOR_DB } }
+            - name: POSTGRES_USER
+              valueFrom: { secretKeyRef: { name: postgres-credentials, key: POSTGRES_USER } }
+            - name: PGPASSWORD
+              valueFrom: { secretKeyRef: { name: postgres-credentials, key: POSTGRES_PASSWORD } }
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              until pg_isready -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER"; do
+                echo "Esperando RDS en $POSTGRES_HOST:$POSTGRES_PORT ..."
+                sleep 5
+              done
+              EXISTE=$(psql -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d postgres -tAc \
+                "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_PROVEEDOR_DB}'")
+              if [ "$EXISTE" != "1" ]; then
+                psql -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d postgres -c \
+                  "CREATE DATABASE \"${POSTGRES_PROVEEDOR_DB}\" OWNER \"${POSTGRES_USER}\";"
+                echo "Base ${POSTGRES_PROVEEDOR_DB} creada."
+              else
+                echo "Base ${POSTGRES_PROVEEDOR_DB} ya existe."
+              fi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-trabajo-saga-db-bootstrap
+  namespace: hda
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: bootstrap
+          image: postgres:18-alpine
+          env:
+            - name: POSTGRES_HOST
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: POSTGRES_HOST } }
+            - name: POSTGRES_PORT
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: POSTGRES_PORT } }
+            - name: POSTGRES_TRABAJO_SAGA_DB
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: POSTGRES_TRABAJO_SAGA_DB } }
+            - name: POSTGRES_USER
+              valueFrom: { secretKeyRef: { name: postgres-credentials, key: POSTGRES_USER } }
+            - name: PGPASSWORD
+              valueFrom: { secretKeyRef: { name: postgres-credentials, key: POSTGRES_PASSWORD } }
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              until pg_isready -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER"; do
+                echo "Esperando RDS en $POSTGRES_HOST:$POSTGRES_PORT ..."
+                sleep 5
+              done
+              EXISTE=$(psql -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d postgres -tAc \
+                "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_TRABAJO_SAGA_DB}'")
+              if [ "$EXISTE" != "1" ]; then
+                psql -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d postgres -c \
+                  "CREATE DATABASE \"${POSTGRES_TRABAJO_SAGA_DB}\" OWNER \"${POSTGRES_USER}\";"
+                echo "Base ${POSTGRES_TRABAJO_SAGA_DB} creada."
+              else
+                echo "Base ${POSTGRES_TRABAJO_SAGA_DB} ya existe."
+              fi

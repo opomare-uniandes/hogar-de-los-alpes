@@ -1,33 +1,33 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: trabajos-service
+  name: proveedor-service
   namespace: hda
   labels:
-    app: trabajos-service
+    app: proveedor-service
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: trabajos-service
+      app: proveedor-service
   template:
     metadata:
       labels:
-        app: trabajos-service
+        app: proveedor-service
     spec:
       containers:
-        - name: trabajos-service
-          image: __TRABAJOS_IMAGE__
-          imagePullPolicy: Always
+        - name: proveedor-service
+          image: hda/proveedor-service:local
+          imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 8081
+            - containerPort: 8085
           env:
             - name: POSTGRES_HOST
               valueFrom: { configMapKeyRef: { name: hda-endpoints, key: POSTGRES_HOST } }
             - name: POSTGRES_PORT
               valueFrom: { configMapKeyRef: { name: hda-endpoints, key: POSTGRES_PORT } }
-            - name: POSTGRES_DB
-              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: POSTGRES_DB } }
+            - name: POSTGRES_PROVEEDOR_DB
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: POSTGRES_PROVEEDOR_DB } }
             - name: POSTGRES_USER
               valueFrom: { secretKeyRef: { name: postgres-credentials, key: POSTGRES_USER } }
             - name: POSTGRES_PASSWORD
@@ -51,11 +51,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: trabajos-service
+  name: proveedor-service
   namespace: hda
 spec:
   selector:
-    app: trabajos-service
+    app: proveedor-service
   ports:
-    - port: 8081
-      targetPort: 8081
+    - port: 8085
+      targetPort: 8085

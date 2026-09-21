@@ -66,7 +66,7 @@ variable "ecr_repo_prefix" {
 variable "app_names" {
   description = "Application names that need an ECR repository, matching the local Docker image names"
   type        = list(string)
-  default     = ["trabajos-service", "integracion-service", "notificaciones-service", "usuarios-service"]
+  default     = ["trabajos-service", "integracion-service", "notificaciones-service", "usuarios-service", "proveedor-service", "trabajo-saga-service"]
 }
 
 variable "eks_version" {
@@ -163,4 +163,22 @@ variable "keda_chart_version" {
   description = "KEDA Helm chart version"
   type        = string
   default     = "2.20.2"
+}
+
+variable "metrics_server_chart_version" {
+  description = "metrics-server Helm chart version (feeds CPU/memory to the HPA of the entry-API services)"
+  type        = string
+  default     = "3.12.2"
+}
+
+variable "otel_collector_host" {
+  description = "OTLP/HTTP base endpoint the services export metrics and traces to (the app appends /v1/metrics and /v1/traces). Not secret."
+  type        = string
+  default     = "https://otlp-gateway-prod-us-east-3.grafana.net/otlp"
+}
+
+variable "otel_exporter_otlp_headers_authorization" {
+  description = "Authorization header for the OTLP exporter (e.g. 'Basic <base64(instanceID:token)>'). Secret: set it in the gitignored sandbox.auto.tfvars, never in a committed file."
+  type        = string
+  sensitive   = true
 }

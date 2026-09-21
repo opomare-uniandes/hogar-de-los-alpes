@@ -18,12 +18,16 @@ CLUSTER_NAME=$(terraform -chdir="$TF_DIR" output -raw eks_cluster_name)
 RDS_ENDPOINT=$(terraform -chdir="$TF_DIR" output -raw rds_endpoint)
 REDIS_ENDPOINT=$(terraform -chdir="$TF_DIR" output -raw redis_endpoint)
 POSTGRES_PASSWORD=$(terraform -chdir="$TF_DIR" output -raw rds_master_password)
+OTEL_COLLECTOR_HOST=$(terraform -chdir="$TF_DIR" output -raw otel_collector_host)
+OTEL_EXPORTER_OTLP_HEADERS_AUTHORIZATION=$(terraform -chdir="$TF_DIR" output -raw otel_exporter_otlp_headers_authorization)
 
 ECR_JSON=$(terraform -chdir="$TF_DIR" output -json ecr_repository_urls)
 TRABAJOS_IMAGE="$(echo "$ECR_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["trabajos-service"] + ":latest")')"
 INTEGRACION_IMAGE="$(echo "$ECR_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["integracion-service"] + ":latest")')"
 NOTIFICACIONES_IMAGE="$(echo "$ECR_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["notificaciones-service"] + ":latest")')"
 USUARIOS_IMAGE="$(echo "$ECR_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["usuarios-service"] + ":latest")')"
+PROVEEDOR_IMAGE="$(echo "$ECR_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["proveedor-service"] + ":latest")')"
+TRABAJO_SAGA_IMAGE="$(echo "$ECR_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["trabajo-saga-service"] + ":latest")')"
 
 echo "Cluster: $CLUSTER_NAME"
 aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION" --profile "$AWS_PROFILE"
@@ -37,10 +41,14 @@ find "$RENDER_DIR" -type f -name '*.yaml' -exec sed -i \
   -e "s#__RDS_ENDPOINT__#${RDS_ENDPOINT}#g" \
   -e "s#__REDIS_ENDPOINT__#${REDIS_ENDPOINT}#g" \
   -e "s#__POSTGRES_PASSWORD__#${POSTGRES_PASSWORD}#g" \
+  -e "s#__OTEL_COLLECTOR_HOST__#${OTEL_COLLECTOR_HOST}#g" \
+  -e "s#__OTEL_EXPORTER_OTLP_HEADERS_AUTHORIZATION__#${OTEL_EXPORTER_OTLP_HEADERS_AUTHORIZATION}#g" \
   -e "s#__TRABAJOS_IMAGE__#${TRABAJOS_IMAGE}#g" \
   -e "s#__INTEGRACION_IMAGE__#${INTEGRACION_IMAGE}#g" \
   -e "s#__NOTIFICACIONES_IMAGE__#${NOTIFICACIONES_IMAGE}#g" \
   -e "s#__USUARIOS_IMAGE__#${USUARIOS_IMAGE}#g" \
+  -e "s#__PROVEEDOR_IMAGE__#${PROVEEDOR_IMAGE}#g" \
+  -e "s#__TRABAJO_SAGA_IMAGE__#${TRABAJO_SAGA_IMAGE}#g" \
   {} +
 
 kubectl apply -f "$RENDER_DIR/base"
