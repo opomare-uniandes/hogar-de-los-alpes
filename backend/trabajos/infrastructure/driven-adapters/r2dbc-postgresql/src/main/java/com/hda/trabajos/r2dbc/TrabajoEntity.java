@@ -1,14 +1,18 @@
 package com.hda.trabajos.r2dbc;
 
 import org.springframework.data.annotation.Id;
-import org.springframework.data.domain.Persistable;
 import org.springframework.data.relational.core.mapping.Table;
 
 import java.time.Instant;
 import java.util.UUID;
 
+/** Proyeccion de lectura de trabajo. TrabajoRepositoryAdapter escribe con un upsert manual
+ * (INSERT ... ON CONFLICT), no via ReactiveCrudRepository.save(): desde que asignar()/cancelar()
+ * (seccion 6.1 del plan) necesitan UPDATE ademas del INSERT original de crear(), la misma fila
+ * pasa por ambas operaciones a traves del mismo guardar() - por eso ya no implementa Persistable
+ * (isNew() no puede responder ambos casos correctamente con un solo booleano fijo). */
 @Table("trabajo")
-public class TrabajoEntity implements Persistable<UUID> {
+public class TrabajoEntity {
 
     @Id
     private UUID id;
@@ -40,12 +44,9 @@ public class TrabajoEntity implements Persistable<UUID> {
         this.fechaCreacion = fechaCreacion;
     }
 
-    @Override
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
 
-    @Override
-    public boolean isNew() { return true; }
     public UUID getClienteId() { return clienteId; }
     public void setClienteId(UUID clienteId) { this.clienteId = clienteId; }
     public String getCategoriaServicio() { return categoriaServicio; }

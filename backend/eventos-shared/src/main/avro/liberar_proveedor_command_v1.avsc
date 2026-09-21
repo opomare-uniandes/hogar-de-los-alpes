@@ -1,0 +1,10 @@
+{
+  "type": "record",
+  "name": "LiberarProveedorCommandV1",
+  "namespace": "com.hda.eventos.proveedor.commands.v1",
+  "doc": "Comando de COMPENSACION publicado por trabajo-saga-service y consumido por proveedor-service: libera una reserva previa cuando un paso posterior de la saga falla con el proveedor ya reservado. Idempotente: no-op si el proveedor ya esta disponible.",
+  "fields": [
+    {"name": "sagaId", "type": "string"},
+    {"name": "proveedorId", "type": "string"}
+  ]
+}

@@ -7,6 +7,7 @@ build-cache/
 out/
 .claude
 .idea/
+.vscode/
 
 # Variables de entorno con credenciales reales - NO versionar.
 # (la plantilla deploy/docker-compose/.env.example SI se versiona)

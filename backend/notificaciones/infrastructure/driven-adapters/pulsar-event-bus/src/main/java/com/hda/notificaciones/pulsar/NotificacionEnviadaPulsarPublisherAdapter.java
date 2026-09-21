@@ -45,6 +45,7 @@ public class NotificacionEnviadaPulsarPublisherAdapter implements NotificacionEn
     public Mono<Void> publicar(NotificacionEnviada notificacionEnviada) {
         com.hda.eventos.notificaciones.NotificacionEnviada mensajeAvro =
                 com.hda.eventos.notificaciones.NotificacionEnviada.newBuilder()
+                        .setSagaId(notificacionEnviada.sagaId())
                         .setTrabajoId(notificacionEnviada.trabajoId())
                         .setClienteId(notificacionEnviada.clienteId())
                         .setCanal(notificacionEnviada.canal())

@@ -1,0 +1,11 @@
+{
+  "type": "record",
+  "name": "ProveedorNoDisponible",
+  "namespace": "com.hda.eventos.proveedor",
+  "doc": "Evento publicado por proveedor-service hacia trabajo-saga-service: resultado FALLO de ReservarProveedorCommandV1 (dispara el camino de compensacion de la saga 'Asignacion de trabajo con proveedor').",
+  "fields": [
+    {"name": "sagaId", "type": "string"},
+    {"name": "trabajoId", "type": "string"},
+    {"name": "motivo", "type": "string"}
+  ]
+}

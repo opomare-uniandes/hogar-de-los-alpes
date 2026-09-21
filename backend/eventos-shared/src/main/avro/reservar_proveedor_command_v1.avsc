@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "ReservarProveedorCommandV1",
+  "namespace": "com.hda.eventos.proveedor.commands.v1",
+  "doc": "Comando publicado por trabajo-saga-service y consumido por proveedor-service: primer paso de la saga 'Asignacion de trabajo con proveedor'. sagaId identifica la instancia de saga y es la clave de idempotencia de la reserva (ver ReservarProveedorUseCase).",
+  "fields": [
+    {"name": "sagaId", "type": "string"},
+    {"name": "trabajoId", "type": "string"},
+    {"name": "categoriaServicio", "type": "string"},
+    {"name": "ciudad", "type": "string"}
+  ]
+}

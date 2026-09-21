@@ -1,0 +1,11 @@
+{
+  "type": "record",
+  "name": "TrabajoCancelado",
+  "namespace": "com.hda.eventos.dominio",
+  "doc": "Evento de DOMINIO publicado por trabajos-service hacia trabajo-saga-service en respuesta a CancelarTrabajoCommandV1 (compensacion), siguiendo el mismo patron que TrabajoCreado.",
+  "fields": [
+    {"name": "sagaId", "type": "string"},
+    {"name": "trabajoId", "type": "string"},
+    {"name": "estado", "type": "string"}
+  ]
+}

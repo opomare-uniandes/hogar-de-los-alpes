@@ -1,4 +1,5 @@
-# Entorno local completo (infra + 4 servicios) para pruebas rapidas.
+# Entorno local completo (infra + 6 servicios: los 4 de la Entrega 4 mas proveedor-service
+# y trabajo-saga-service de la Entrega 5) para pruebas rapidas.
 #
 # Uso (desde deploy/docker-compose/):
 #   cp .env.example .env   # ajusta al menos POSTGRES_PASSWORD
@@ -18,6 +19,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-hda}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeit}
       POSTGRES_USUARIOS_DB: ${POSTGRES_USUARIOS_DB:-hda_usuarios}
+      POSTGRES_PROVEEDOR_DB: ${POSTGRES_PROVEEDOR_DB:-hda_proveedor}
+      POSTGRES_TRABAJO_SAGA_DB: ${POSTGRES_TRABAJO_SAGA_DB:-hda_trabajo_saga}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -64,6 +67,7 @@ services:
         bin/pulsar-admin --admin-url http://pulsar:8080 namespaces create hda/integracion || true
         bin/pulsar-admin --admin-url http://pulsar:8080 namespaces create hda/notificaciones || true
         bin/pulsar-admin --admin-url http://pulsar:8080 namespaces create hda/partner || true
+        bin/pulsar-admin --admin-url http://pulsar:8080 namespaces create hda/proveedor || true
         echo "Tenant/namespaces hda listos."
 
   redis:
@@ -75,7 +79,7 @@ services:
     volumes:
       - redisdata:/data
 
-  # --- Los 4 servicios Spring Boot ---
+  # --- Los 4 servicios Spring Boot de la Entrega 4 ---
   # Comparten el mismo Dockerfile; cada uno es su propio modulo Gradle bootable
   # (arg SERVICE selecciona cual: trabajos/integracion/notificaciones/usuarios).
   trabajos-service:
@@ -169,6 +173,56 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeit}
     ports:
       - "8084:8084"
+
+  # --- Los 2 servicios nuevos de la Entrega 5 (saga "Asignacion de trabajo con proveedor") ---
+  # Mismo Dockerfile/patron que los 4 de arriba.
+  proveedor-service:
+    build:
+      context: ../../backend
+      dockerfile: ../deploy/docker-compose/Dockerfile
+      args:
+        SERVICE: proveedor
+    image: hda/proveedor-service:local
+    container_name: hda-proveedor
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pulsar-init:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_PROVEEDOR_DB: ${POSTGRES_PROVEEDOR_DB:-hda_proveedor}
+      POSTGRES_USER: ${POSTGRES_USER:-hda}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeit}
+      PULSAR_SERVICE_URL: pulsar://pulsar:6650
+      PULSAR_ADMIN_URL: http://pulsar:8080
+    ports:
+      - "8085:8085"
+
+  trabajo-saga-service:
+    build:
+      context: ../../backend
+      dockerfile: ../deploy/docker-compose/Dockerfile
+      args:
+        SERVICE: trabajo-saga
+    image: hda/trabajo-saga-service:local
+    container_name: hda-trabajo-saga
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pulsar-init:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_TRABAJO_SAGA_DB: ${POSTGRES_TRABAJO_SAGA_DB:-hda_trabajo_saga}
+      POSTGRES_USER: ${POSTGRES_USER:-hda}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeit}
+      PULSAR_SERVICE_URL: pulsar://pulsar:6650
+      PULSAR_ADMIN_URL: http://pulsar:8080
+    ports:
+      - "8086:8086"
 
 volumes:
   pgdata:

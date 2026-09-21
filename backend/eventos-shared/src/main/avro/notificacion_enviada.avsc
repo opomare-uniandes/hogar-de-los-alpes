@@ -5,6 +5,12 @@
   "doc": "Evento publicado por notificaciones-service DESPUES de simular el envio de un email al cliente cuando se crea un Trabajo. Igual que TrabajoSiniestroCreado, es un evento distinto de TrabajoCreado (evento de dominio): solo expone lo que interesa saber sobre la notificacion en si (canal, destinatario, ni siquiera el detalle del Trabajo).",
   "fields": [
     {
+      "name": "sagaId",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Presente solo cuando esta notificacion es el ultimo paso (NOTIFICAR/NOTIFICAR_FALLO) de la saga 'Asignacion de trabajo con proveedor' (ver trabajo-saga-service). Nulo para el flujo original de Entrega 4 (avisar al cliente que se creo un Trabajo), que no pertenece a ninguna saga. Campo opcional con default para mantener compatibilidad hacia atras (mismo patron que partnerId en trabajo_creado.avsc)."
+    },
+    {
       "name": "trabajoId",
       "type": "string"
     },

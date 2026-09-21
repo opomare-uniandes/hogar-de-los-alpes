@@ -18,4 +18,12 @@ public interface EventDeduplicationStore {
      *         {@code false} si ya habia sido registrado antes (es un duplicado: saltar).
      */
     Mono<Boolean> registrarSiNoVisto(String eventId);
+
+    /**
+     * Deshace el registro de registrarSiNoVisto. Debe llamarse cuando el procesamiento del
+     * evento FALLA despues de haberlo marcado como visto: sin esto, una redelivery de Pulsar
+     * (at-least-once) encontraria el id ya marcado y lo saltaria como "duplicado", aunque el
+     * intento anterior nunca se completo con exito - la notificacion jamas se reintentaria.
+     */
+    Mono<Void> olvidar(String eventId);
 }

@@ -79,3 +79,42 @@ project(':usuarios-reactive-web').projectDir = file('usuarios/infrastructure/ent
 
 include ':usuarios-r2dbc-postgresql'
 project(':usuarios-r2dbc-postgresql').projectDir = file('usuarios/infrastructure/driven-adapters/r2dbc-postgresql')
+
+include ':proveedor-application'
+project(':proveedor-application').projectDir = file('proveedor/application')
+
+include ':proveedor-model'
+project(':proveedor-model').projectDir = file('proveedor/domain/model')
+
+include ':proveedor-usecase'
+project(':proveedor-usecase').projectDir = file('proveedor/domain/usecase')
+
+include ':proveedor-r2dbc-postgresql'
+project(':proveedor-r2dbc-postgresql').projectDir = file('proveedor/infrastructure/driven-adapters/r2dbc-postgresql')
+
+include ':proveedor-pulsar-event-bus'
+project(':proveedor-pulsar-event-bus').projectDir = file('proveedor/infrastructure/driven-adapters/pulsar-event-bus')
+
+include ':proveedor-pulsar-command-handler'
+project(':proveedor-pulsar-command-handler').projectDir = file('proveedor/infrastructure/entry-points/pulsar-command-handler')
+
+include ':trabajo-saga-application'
+project(':trabajo-saga-application').projectDir = file('trabajo-saga/application')
+
+include ':trabajo-saga-model'
+project(':trabajo-saga-model').projectDir = file('trabajo-saga/domain/model')
+
+include ':trabajo-saga-usecase'
+project(':trabajo-saga-usecase').projectDir = file('trabajo-saga/domain/usecase')
+
+include ':trabajo-saga-reactive-web'
+project(':trabajo-saga-reactive-web').projectDir = file('trabajo-saga/infrastructure/entry-points/reactive-web')
+
+include ':trabajo-saga-r2dbc-postgresql'
+project(':trabajo-saga-r2dbc-postgresql').projectDir = file('trabajo-saga/infrastructure/driven-adapters/r2dbc-postgresql')
+
+include ':trabajo-saga-pulsar-event-bus'
+project(':trabajo-saga-pulsar-event-bus').projectDir = file('trabajo-saga/infrastructure/driven-adapters/pulsar-event-bus')
+
+include ':trabajo-saga-pulsar-event-handler'
+project(':trabajo-saga-pulsar-event-handler').projectDir = file('trabajo-saga/infrastructure/entry-points/pulsar-event-handler')

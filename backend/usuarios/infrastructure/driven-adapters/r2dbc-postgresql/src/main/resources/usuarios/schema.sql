@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS usuario (
     notificar_por_whatsapp   BOOLEAN NOT NULL DEFAULT FALSE
 );
 
--- 3 usuarios semilla con UUID fijo y conocido, para probar a mano los 3 casos de canal
+-- 4 usuarios semilla con UUID fijo y conocido, para probar a mano los casos de canal
 -- (usarlos como clienteId al hacer POST /trabajos durante las pruebas end-to-end).
 INSERT INTO usuario (id, nombre, correo, celular, notificar_por_email, notificar_por_whatsapp)
 VALUES

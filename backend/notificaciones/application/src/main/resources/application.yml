@@ -16,6 +16,13 @@ hda:
     topic-trabajo-creado: persistent://hda/trabajos/trabajo-creado
     topic-notificacion-enviada: persistent://hda/notificaciones/notificacion-enviada
     subscription: notificaciones-service-sub
+
+    # Saga "Asignacion de trabajo con proveedor" (mismas cadenas que en el application.yml
+    # de trabajo-saga-service, que es quien publica estos comandos).
+    topic-notificar-asignacion-command: persistent://hda/notificaciones/notificar-asignacion-command
+    subscription-notificar-asignacion-command: notificaciones-notificar-asignacion-command-sub
+    topic-notificar-fallo-command: persistent://hda/notificaciones/notificar-fallo-command
+    subscription-notificar-fallo-command: notificaciones-notificar-fallo-command-sub
   idempotencia:
     ttl: PT24H
   usuarios-service:

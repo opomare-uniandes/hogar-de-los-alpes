@@ -1,0 +1,11 @@
+{
+  "type": "record",
+  "name": "AsignarTrabajoCommandV1",
+  "namespace": "com.hda.eventos.trabajos.commands.v1",
+  "doc": "Comando publicado por trabajo-saga-service y consumido por trabajos-service tras reservar proveedor: pasa el Trabajo de CREADO a ASIGNADO (Trabajo.asignar()).",
+  "fields": [
+    {"name": "sagaId", "type": "string"},
+    {"name": "trabajoId", "type": "string"},
+    {"name": "proveedorId", "type": "string"}
+  ]
+}
