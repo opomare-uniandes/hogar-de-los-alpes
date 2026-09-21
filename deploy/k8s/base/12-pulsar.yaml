@@ -97,5 +97,6 @@ spec:
               bin/pulsar-admin --admin-url "$ADMIN" namespaces create hda/trabajos || true
               bin/pulsar-admin --admin-url "$ADMIN" namespaces create hda/integracion || true
               bin/pulsar-admin --admin-url "$ADMIN" namespaces create hda/notificaciones || true
+              bin/pulsar-admin --admin-url "$ADMIN" namespaces create hda/proveedor || true
               bin/pulsar-admin --admin-url "$ADMIN" namespaces create hda/partner || true
               echo "Tenant/namespaces listos."

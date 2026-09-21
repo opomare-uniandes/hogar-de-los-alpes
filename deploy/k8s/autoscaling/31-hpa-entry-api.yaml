@@ -1,23 +1,4 @@
 # Autoescalado por CPU de los servicios de entrada (los que NO consumen topicos de Pulsar).
-#
-# A diferencia de integracion/notificaciones-service (que escalan por backlog de su
-# suscripcion con KEDA, ver 30-scaledobjects.yaml), trabajos-service y usuarios-service
-# reciben peticiones HTTP: no hay backlog que medir. Su senal natural de carga ante un
-# pico inesperado de llamadas es la CPU, asi que aqui se usa el HorizontalPodAutoscaler
-# nativo por utilizacion de CPU.
-#
-#   - trabajos-service: punto de entrada externo real (POST/GET /trabajos, NodePort 30081).
-#   - usuarios-service: sincrono; lo consulta notificaciones-service. Cuando el camino de
-#     notificaciones escala por backlog, usuarios-service recibe mas GET /contacto, asi que
-#     tambien conviene que escale por su cuenta.
-#
-# Requiere metrics-server en el cluster (ver README, paso "Autoescalado por CPU"). El HPA
-# calcula el % sobre requests.cpu declarado en cada Deployment (200m), asi que
-# averageUtilization: 60 => escala cuando el uso promedio pasa de ~120m por pod.
-#
-# minReplicas: 1 (arranca igual que el Deployment); maxReplicas: 5 acotado a proposito para
-# un cluster local. Las politicas de behavior evitan el aleteo (scale-up agresivo,
-# scale-down conservador con ventana de estabilizacion).
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:

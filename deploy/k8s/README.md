@@ -27,13 +27,15 @@ k8s/
 │   ├── 10-postgres.yaml          Postgres (PVC + init ConfigMap)
 │   ├── 11-redis.yaml             Redis
 │   └── 12-pulsar.yaml            Pulsar standalone + Job que crea tenant/namespaces
-├── apps/                       Los 4 servicios (Deployment + Service)
+├── apps/                       Los 6 servicios (Deployment + Service)
 │   ├── 20-trabajos-service.yaml    (+ NodePort 30081 para acceso local)
 │   ├── 21-integracion-service.yaml
 │   ├── 22-notificaciones-service.yaml
-│   └── 23-usuarios-service.yaml
+│   ├── 23-usuarios-service.yaml
+│   ├── 24-proveedor-service.yaml
+│   └── 25-trabajo-saga-service.yaml
 └── autoscaling/
-    ├── 30-scaledobjects.yaml   KEDA ScaledObjects (integracion + notificaciones, por backlog)
+    ├── 30-scaledobjects.yaml   KEDA ScaledObjects (integracion + notificaciones + proveedor, por backlog)
     └── 31-hpa-entry-api.yaml   HPA nativo por CPU (trabajos + usuarios, servicios de entrada)
 ```
 
@@ -78,11 +80,15 @@ docker build -t hda/trabajos-service:local       --build-arg SERVICE=trabajos   
 docker build -t hda/integracion-service:local    --build-arg SERVICE=integracion    -f deploy/docker-compose/Dockerfile backend
 docker build -t hda/notificaciones-service:local --build-arg SERVICE=notificaciones -f deploy/docker-compose/Dockerfile backend
 docker build -t hda/usuarios-service:local       --build-arg SERVICE=usuarios       -f deploy/docker-compose/Dockerfile backend
+docker build -t hda/proveedor-service:local      --build-arg SERVICE=proveedor      -f deploy/docker-compose/Dockerfile backend
+docker build -t hda/trabajo-saga-service:local   --build-arg SERVICE=trabajo-saga   -f deploy/docker-compose/Dockerfile backend
 
 kind load docker-image hda/trabajos-service:local       --name hda
 kind load docker-image hda/integracion-service:local    --name hda
 kind load docker-image hda/notificaciones-service:local --name hda
 kind load docker-image hda/usuarios-service:local       --name hda
+kind load docker-image hda/proveedor-service:local      --name hda
+kind load docker-image hda/trabajo-saga-service:local   --name hda
 
 # 5. Desplegar
 kubectl apply -f deploy/k8s/base/
@@ -92,7 +98,7 @@ kubectl apply -f deploy/k8s/autoscaling/
 
 # 6. Verificar
 kubectl get pods -n hda
-kubectl get scaledobject -n hda   # KEDA: integracion + notificaciones (por backlog)
+kubectl get scaledobject -n hda   # KEDA: integracion + notificaciones + proveedor (por backlog)
 kubectl get hpa -n hda            # HPA:  trabajos + usuarios (por CPU)
 ```
 
@@ -211,11 +217,15 @@ docker build -t hda/trabajos-service:local       --build-arg SERVICE=trabajos   
 docker build -t hda/integracion-service:local    --build-arg SERVICE=integracion    -f deploy/docker-compose/Dockerfile backend
 docker build -t hda/notificaciones-service:local --build-arg SERVICE=notificaciones -f deploy/docker-compose/Dockerfile backend
 docker build -t hda/usuarios-service:local       --build-arg SERVICE=usuarios       -f deploy/docker-compose/Dockerfile backend
+docker build -t hda/proveedor-service:local      --build-arg SERVICE=proveedor      -f deploy/docker-compose/Dockerfile backend
+docker build -t hda/trabajo-saga-service:local   --build-arg SERVICE=trabajo-saga   -f deploy/docker-compose/Dockerfile backend
 
 minikube image load hda/trabajos-service:local       -p hda
 minikube image load hda/integracion-service:local    -p hda
 minikube image load hda/notificaciones-service:local -p hda
 minikube image load hda/usuarios-service:local       -p hda
+minikube image load hda/proveedor-service:local      -p hda
+minikube image load hda/trabajo-saga-service:local   -p hda
 
 # 5. Desplegar
 kubectl apply -f deploy/k8s/base/

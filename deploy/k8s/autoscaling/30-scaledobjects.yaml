@@ -38,3 +38,23 @@ spec:
         topic: persistent://hda/trabajos/trabajo-creado
         subscription: notificaciones-service-sub
         msgBacklogThreshold: "10"
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: proveedor-service-scaler
+  namespace: hda
+spec:
+  scaleTargetRef:
+    name: proveedor-service
+  minReplicaCount: 1
+  maxReplicaCount: 4
+  cooldownPeriod: 30
+  pollingInterval: 15
+  triggers:
+    - type: pulsar
+      metadata:
+        adminURL: http://pulsar.hda.svc.cluster.local:8080
+        topic: persistent://hda/proveedor/reservar-proveedor-command
+        subscription: proveedor-reservar-command-sub
+        msgBacklogThreshold: "10"
