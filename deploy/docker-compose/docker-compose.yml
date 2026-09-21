@@ -10,6 +10,16 @@
 #
 # Los servicios Spring leen host/credenciales por variables de entorno; aqui apuntan
 # a los NOMBRES DE SERVICIO internos de compose (postgres, pulsar, redis), no a localhost.
+
+x-otel-env: &otel-env
+  OTEL_COLLECTOR_HOST: ${OTEL_COLLECTOR_HOST:-http://host.docker.internal:4318}
+  OTEL_TRACING_SAMPLING: ${OTEL_TRACING_SAMPLING:-1.0}
+  OTEL_EXPORTER_OTLP_HEADERS_AUTHORIZATION: ${OTEL_EXPORTER_OTLP_HEADERS_AUTHORIZATION:-Basic }
+  SERVICE_ENV: ${SERVICE_ENV:-local}
+
+x-host-gateway: &host-gateway
+  - "host.docker.internal:host-gateway"
+
 services:
   postgres:
     image: postgres:18-alpine
@@ -96,6 +106,7 @@ services:
       pulsar-init:
         condition: service_completed_successfully
     environment:
+      <<: *otel-env
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB:-hda_trabajos}
@@ -103,6 +114,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeit}
       PULSAR_SERVICE_URL: pulsar://pulsar:6650
       PULSAR_ADMIN_URL: http://pulsar:8080
+    extra_hosts: *host-gateway
     ports:
       - "8081:8081"
 
@@ -120,6 +132,7 @@ services:
       redis:
         condition: service_started
     environment:
+      <<: *otel-env
       REDIS_HOST: redis
       REDIS_PORT: 6379
       PULSAR_SERVICE_URL: pulsar://pulsar:6650
@@ -127,6 +140,7 @@ services:
       # Solo para la evidencia reproducible del escenario de interoperabilidad V1/V2.
       # Mantener en false durante las ejecuciones normales.
       HDA_DEMO_PARTNER_ENABLED: ${HDA_DEMO_PARTNER_ENABLED:-false}
+    extra_hosts: *host-gateway
     ports:
       - "8082:8082"
 
@@ -146,11 +160,13 @@ services:
       usuarios-service:
         condition: service_started
     environment:
+      <<: *otel-env
       REDIS_HOST: redis
       REDIS_PORT: 6379
       PULSAR_SERVICE_URL: pulsar://pulsar:6650
       PULSAR_ADMIN_URL: http://pulsar:8080
       USUARIOS_SERVICE_BASE_URL: http://usuarios-service:8084
+    extra_hosts: *host-gateway
     ports:
       - "8083:8083"
 
@@ -166,11 +182,13 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      <<: *otel-env
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_USUARIOS_DB: ${POSTGRES_USUARIOS_DB:-hda_usuarios}
       POSTGRES_USER: ${POSTGRES_USER:-hda}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeit}
+    extra_hosts: *host-gateway
     ports:
       - "8084:8084"
 

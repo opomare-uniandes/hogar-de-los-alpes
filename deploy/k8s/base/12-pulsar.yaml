@@ -35,11 +35,20 @@ spec:
               port: 8080
             initialDelaySeconds: 60
             periodSeconds: 10
-            failureThreshold: 6
+            timeoutSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /admin/v2/namespaces/public/default
+              port: 8080
+            initialDelaySeconds: 90
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 12
           resources:
             requests:
               memory: "1Gi"
-              cpu: "500m"
+              cpu: "750m"
             limits:
               memory: "2Gi"
               cpu: "1"
