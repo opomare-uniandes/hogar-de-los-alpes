@@ -1,10 +1,11 @@
 # Kubernetes en AWS (EKS)
 
-Despliega los 4 servicios sobre la infraestructura AWS creada por
-[`../terraform/`](../terraform/) (EKS, RDS, ElastiCache, ECR) con el mismo autoescalado por
-backlog de Pulsar (KEDA) que el flujo local, mas un ALB real (Gateway API) para acceso
-externo. Para desarrollo local sin AWS, ver [`../k8s/README.md`](../k8s/README.md) — esta
-carpeta es un flujo separado, no reemplaza al local.
+Despliega los 6 servicios sobre la infraestructura AWS creada por
+[`../terraform/`](../terraform/) (EKS, RDS, ElastiCache, ECR) con autoescalado por backlog de
+Pulsar (KEDA) para los consumidores y por CPU (HPA + metrics-server) para los servicios de
+entrada, mas un ALB real (Gateway API) para acceso externo. Para desarrollo local sin AWS,
+ver [`../k8s/README.md`](../k8s/README.md) — esta carpeta es un flujo separado, no reemplaza
+al local.
 
 ## Contenido
 
@@ -12,19 +13,22 @@ carpeta es un flujo separado, no reemplaza al local.
 k8s-cloud/
 ├── apply.sh                      Renderiza los __PLACEHOLDER__ con outputs de Terraform y aplica todo
 ├── base/
-│   ├── 00-namespace-config.yaml    Namespace hda + ConfigMap hda-endpoints (RDS/Redis/Pulsar)
-│   ├── 01-secrets.yaml             Secret postgres-credentials (password generada por Terraform)
+│   ├── 00-namespace-config.yaml    Namespace hda + ConfigMap hda-endpoints (RDS/Redis/Pulsar/OTel)
+│   ├── 01-secrets.yaml             Secret postgres-credentials + otel-credentials
 │   ├── 02-storageclass.yaml        StorageClass gp3 (para el volumen de Pulsar)
-│   ├── 03-postgres-bootstrap.yaml  Job: crea hda_usuarios en RDS si no existe
+│   ├── 03-postgres-bootstrap.yaml  Jobs: crean hda_usuarios/hda_proveedor/hda_trabajo_saga en RDS
 │   └── 04-pulsar.yaml              Pulsar standalone + PVC gp3 + Job que crea tenant/namespaces
-├── apps/                          Los 4 servicios (imagenes de ECR)
+├── apps/                          Los 6 servicios (imagenes de ECR)
 │   ├── 20-trabajos-service.yaml
 │   ├── 21-integracion-service.yaml
 │   ├── 22-notificaciones-service.yaml
 │   ├── 23-usuarios-service.yaml
-│   └── 24-gateway.yaml             GatewayClass/Gateway/HTTPRoute (ALB, no Ingress)
+│   ├── 24-gateway.yaml             GatewayClass/Gateway/HTTPRoute (ALB, no Ingress)
+│   ├── 25-proveedor-service.yaml
+│   └── 26-trabajo-saga-service.yaml
 └── autoscaling/
-    └── 30-scaledobjects.yaml       KEDA ScaledObjects (identico al flujo local)
+    ├── 30-scaledobjects.yaml       KEDA ScaledObjects (integracion + notificaciones + proveedor, por backlog)
+    └── 31-hpa-entry-api.yaml       HPA por CPU (trabajos + usuarios; requiere metrics-server, instalado por Terraform)
 ```
 
 ## Requisitos
@@ -35,6 +39,18 @@ de ECR).
 ```bash
 aws sso login --profile <your-aws-profile>
 ```
+
+El exporter de telemetria (metricas + trazas hacia tu backend OTLP, p. ej. Grafana Cloud)
+necesita el header de autorizacion. Es un secreto: ponlo en el `sandbox.auto.tfvars`
+(gitignored), nunca en un archivo versionado. Copia la plantilla y completa el valor:
+
+```bash
+cp deploy/terraform/sandbox.auto.tfvars.example deploy/terraform/sandbox.auto.tfvars
+# edita sandbox.auto.tfvars y pon otel_exporter_otlp_headers_authorization = "Basic <...>"
+```
+
+El host (`otel_collector_host`) tiene un default no-secreto en `variables.tf`; solo hay que
+sobreescribirlo si no usas grafana.net us-east-3.
 
 ## Paso 0: aplicar la infraestructura
 
@@ -59,6 +75,8 @@ docker build -t hda/trabajos-service:local       --build-arg SERVICE=trabajos   
 docker build -t hda/integracion-service:local    --build-arg SERVICE=integracion    -f deploy/docker-compose/Dockerfile backend
 docker build -t hda/notificaciones-service:local --build-arg SERVICE=notificaciones -f deploy/docker-compose/Dockerfile backend
 docker build -t hda/usuarios-service:local       --build-arg SERVICE=usuarios       -f deploy/docker-compose/Dockerfile backend
+docker build -t hda/proveedor-service:local      --build-arg SERVICE=proveedor      -f deploy/docker-compose/Dockerfile backend
+docker build -t hda/trabajo-saga-service:local   --build-arg SERVICE=trabajo-saga   -f deploy/docker-compose/Dockerfile backend
 ```
 
 Despues, tag + push a ECR:
@@ -71,11 +89,15 @@ docker tag hda/trabajos-service:local       <account-id>.dkr.ecr.us-east-1.amazo
 docker tag hda/integracion-service:local    <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/integracion-service:latest
 docker tag hda/notificaciones-service:local <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/notificaciones-service:latest
 docker tag hda/usuarios-service:local       <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/usuarios-service:latest
+docker tag hda/proveedor-service:local      <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/proveedor-service:latest
+docker tag hda/trabajo-saga-service:local   <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/trabajo-saga-service:latest
 
 docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/trabajos-service:latest
 docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/integracion-service:latest
 docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/notificaciones-service:latest
 docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/usuarios-service:latest
+docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/proveedor-service:latest
+docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/trabajo-saga-service:latest
 ```
 
 (`<account-id>` sale de `terraform -chdir=../terraform output ecr_repository_urls`.)
@@ -115,6 +137,8 @@ kubectl rollout restart deployment/trabajos-service -n hda
 kubectl rollout restart deployment/integracion-service -n hda
 kubectl rollout restart deployment/notificaciones-service -n hda
 kubectl rollout restart deployment/usuarios-service -n hda
+kubectl rollout restart deployment/proveedor-service -n hda
+kubectl rollout restart deployment/trabajo-saga-service -n hda
 ```
 
 Eso recrea los Pods; `imagePullPolicy: Always` hace que el Kubelet vuelva a pedir `:latest`
@@ -129,6 +153,7 @@ kubectl rollout status deployment/trabajos-service -n hda
 ```bash
 kubectl get pods -n hda
 kubectl get scaledobject -n hda
+kubectl get hpa -n hda
 kubectl get gateway hda-gateway -n hda
 ```
 

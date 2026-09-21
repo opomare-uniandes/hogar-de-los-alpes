@@ -136,3 +136,13 @@ resource "helm_release" "keda" {
 
   depends_on = [time_sleep.wait_for_lbc_webhook]
 }
+
+resource "helm_release" "metrics_server" {
+  name       = "metrics-server"
+  repository = "https://kubernetes-sigs.github.io/metrics-server/"
+  chart      = "metrics-server"
+  version    = var.metrics_server_chart_version
+  namespace  = "kube-system"
+
+  depends_on = [time_sleep.wait_for_lbc_webhook]
+}

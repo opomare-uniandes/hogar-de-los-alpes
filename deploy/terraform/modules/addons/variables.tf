@@ -51,6 +51,12 @@ variable "keda_chart_version" {
   default     = "2.20.2"
 }
 
+variable "metrics_server_chart_version" {
+  description = "metrics-server Helm chart version"
+  type        = string
+  default     = "3.12.2"
+}
+
 variable "tags" {
   description = "Common tags applied to IAM resources"
   type        = map(string)

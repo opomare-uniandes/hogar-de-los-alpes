@@ -88,3 +88,14 @@ output "gatewayclass_controller_name" {
   description = "GatewayClass controllerName to reference from app manifests for ALB-backed Gateways"
   value       = module.addons.lbc_gatewayclass_controller_name
 }
+
+output "otel_collector_host" {
+  description = "OTLP/HTTP base endpoint the services export to (rendered into hda-endpoints by apply.sh)"
+  value       = var.otel_collector_host
+}
+
+output "otel_exporter_otlp_headers_authorization" {
+  description = "OTLP Authorization header (rendered into the otel-credentials Secret by apply.sh)"
+  value       = var.otel_exporter_otlp_headers_authorization
+  sensitive   = true
+}

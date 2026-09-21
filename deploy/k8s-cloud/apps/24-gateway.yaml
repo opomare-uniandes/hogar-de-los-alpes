@@ -99,3 +99,35 @@ spec:
       backendRefs:
         - name: usuarios-service
           port: 8084
+---
+apiVersion: gateway.k8s.aws/v1
+kind: TargetGroupConfiguration
+metadata:
+  name: trabajo-saga-service-tgconfig
+  namespace: hda
+spec:
+  targetReference:
+    name: trabajo-saga-service
+  defaultConfiguration:
+    targetType: ip
+    healthCheckConfig:
+      healthCheckPath: /
+      matcher:
+        httpCode: "200-499"
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: trabajo-saga-service-route
+  namespace: hda
+spec:
+  parentRefs:
+    - name: hda-gateway
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /sagas
+      backendRefs:
+        - name: trabajo-saga-service
+          port: 8086

@@ -3,6 +3,14 @@
 
 aws_profile = "<your AWS CLI SSO profile name>"
 
+# OTLP exporter Authorization header for telemetry (metrics + traces) toward your OTLP
+# backend (e.g. Grafana Cloud). Format: "Basic <base64(instanceID:token)>". Secret: keep it
+# only here in the gitignored sandbox.auto.tfvars, never in a committed file.
+otel_exporter_otlp_headers_authorization = "Basic <base64(instanceID:token)>"
+
+# Optional: override the OTLP endpoint if you are not on grafana.net us-east-3.
+# otel_collector_host = "https://otlp-gateway-prod-us-east-3.grafana.net/otlp"
+
 # Optional: reuse an existing, unassociated EIP for the NAT gateway. Leave unset / null to let Terraform allocate a new one.
 # nat_eip_allocation_id = "eipalloc-xxxxxxxxxxxxxxxxx"
 
