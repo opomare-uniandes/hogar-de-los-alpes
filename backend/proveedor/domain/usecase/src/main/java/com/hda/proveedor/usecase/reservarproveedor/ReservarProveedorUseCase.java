@@ -3,23 +3,19 @@ package com.hda.proveedor.usecase.reservarproveedor;
 import com.hda.proveedor.model.proveedor.Proveedor;
 import com.hda.proveedor.model.proveedor.ProveedorNoDisponibleDomainEvent;
 import com.hda.proveedor.model.proveedor.ProveedorReservadoDomainEvent;
-import com.hda.proveedor.model.proveedor.gateways.ProveedorEventPublisher;
 import com.hda.proveedor.model.proveedor.gateways.ProveedorRepository;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 
 public class ReservarProveedorUseCase {
 
     private final ProveedorRepository proveedorRepository;
-    private final ProveedorEventPublisher eventPublisher;
 
-    public ReservarProveedorUseCase(ProveedorRepository proveedorRepository, ProveedorEventPublisher eventPublisher) {
+    public ReservarProveedorUseCase(ProveedorRepository proveedorRepository) {
         this.proveedorRepository = proveedorRepository;
-        this.eventPublisher = eventPublisher;
     }
 
     public Mono<Void> ejecutar(ReservarProveedorCommand comando) {
@@ -62,16 +58,21 @@ public class ReservarProveedorUseCase {
     }
 
     private Mono<Void> publicarReservado(ReservarProveedorCommand comando, Proveedor proveedor) {
-        return eventPublisher.publicarTodos(List.of(new ProveedorReservadoDomainEvent(
+        // encolarEventoPendiente (no eventPublisher directo): el evento se persiste en outbox
+        // antes de intentar Pulsar. No hay un guardar() de agregado con el que compartir
+        // transaccion aqui (la reserva atomica es reservarSiDisponible, un UPDATE aparte), pero
+        // el INSERT en outbox_evento es en si mismo una escritura atomica -- ya no se pierde el
+        // evento si el proceso cae entre construirlo y publicarlo.
+        return proveedorRepository.encolarEventoPendiente(new ProveedorReservadoDomainEvent(
                 UUID.randomUUID(), comando.sagaId(), comando.trabajoId(),
-                proveedor.getId(), proveedor.getNombre(), Instant.now())));
+                proveedor.getId(), proveedor.getNombre(), Instant.now()));
     }
 
     private Mono<Void> publicarNoDisponible(ReservarProveedorCommand comando) {
-        return eventPublisher.publicarTodos(List.of(new ProveedorNoDisponibleDomainEvent(
+        return proveedorRepository.encolarEventoPendiente(new ProveedorNoDisponibleDomainEvent(
                 UUID.randomUUID(), comando.sagaId(), comando.trabajoId(),
                 "No hay proveedor disponible para categoriaServicio=" + comando.categoriaServicio()
                         + ", ciudad=" + comando.ciudad(),
-                Instant.now())));
+                Instant.now()));
     }
 }

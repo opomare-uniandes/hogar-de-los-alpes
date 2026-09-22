@@ -10,9 +10,17 @@ import org.apache.pulsar.client.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+/**
+ * Flujo de salida (trabajo-creado -> trabajo-siniestro-creado hacia partners externos), no es
+ * especifico de un partner de entrada. Se puede desactivar (hda.integracion.outbound.enabled=false)
+ * en los despliegues dedicados por partner (ver escenario 4 de escalabilidad: cada partner de
+ * entrada escala de forma aislada en su propio Deployment, que no necesita este flujo de salida).
+ */
 @Component
+@ConditionalOnProperty(prefix = "hda.integracion.outbound", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class TrabajoCreadoListener {
 
     private final PulsarClient pulsarClient;

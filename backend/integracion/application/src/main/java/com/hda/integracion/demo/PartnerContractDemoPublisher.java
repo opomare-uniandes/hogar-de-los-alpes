@@ -23,53 +23,62 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Publicador opcional para demostrar la convivencia de los contratos de partner V1 y V2.
+ * Publicador opcional para demostrar el contrato del partner que ESTA instancia de
+ * integracion-service atiende (hda.pulsar.partner.* -- ver SolicitudTrabajoPartnerListener).
  *
- * No participa en el flujo productivo: solo se activa con HDA_DEMO_PARTNER_ENABLED=true.
- * Publica dos solicitudes semanticamente validas pero con estructuras externas distintas;
- * ambas pasan por el ACL de integracion-service y terminan como comandos canonicos.
+ * No participa en el flujo productivo: solo se activa con HDA_DEMO_PARTNER_ENABLED=true. Publica
+ * una unica solicitud, con la version de contrato y hacia el topico que esta instancia consume,
+ * simulando trafico entrante de SU partner (util para el escenario 4: generar backlog en el
+ * topico de un partner especifico y observar que solo su Deployment/ScaledObject reacciona).
  */
 @Component
 @ConditionalOnProperty(prefix = "hda.demo.partner", name = "enabled", havingValue = "true")
 public class PartnerContractDemoPublisher implements ApplicationRunner {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PartnerContractDemoPublisher.class);
-    private static final String PARTNER_ID = "11111111-1111-1111-1111-111111111111";
     private static final String CLIENTE_ID = "22222222-2222-2222-2222-222222222222";
 
     private final PulsarClient pulsarClient;
-    private final String topicV1;
-    private final String topicV2;
+    private final String versionContrato;
+    private final String topico;
+    private final String partnerId;
 
     public PartnerContractDemoPublisher(
             PulsarClient pulsarClient,
-            @Value("${hda.pulsar.topic-solicitud-partner-v1}") String topicV1,
-            @Value("${hda.pulsar.topic-solicitud-partner-v2}") String topicV2) {
+            @Value("${hda.pulsar.partner.contract-version}") String versionContrato,
+            @Value("${hda.pulsar.partner.topic}") String topico,
+            @Value("${hda.demo.partner.partner-id}") String partnerId) {
         this.pulsarClient = pulsarClient;
-        this.topicV1 = topicV1;
-        this.topicV2 = topicV2;
+        this.versionContrato = versionContrato;
+        this.topico = topico;
+        this.partnerId = partnerId;
     }
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
         Instant requestedAt = Instant.now();
 
-        try (Producer<SolicitudTrabajoPartnerV1> producerV1 = pulsarClient.newProducer(Schema.AVRO(SolicitudTrabajoPartnerV1.class))
-                .topic(topicV1).create();
-             Producer<SolicitudTrabajoPartnerV2> producerV2 = pulsarClient.newProducer(Schema.AVRO(SolicitudTrabajoPartnerV2.class))
-                     .topic(topicV2).create()) {
-            producerV1.send(solicitudV1(requestedAt));
-            producerV2.send(solicitudV2(requestedAt));
+        if ("v2".equalsIgnoreCase(versionContrato)) {
+            try (Producer<SolicitudTrabajoPartnerV2> producer = pulsarClient.newProducer(Schema.AVRO(SolicitudTrabajoPartnerV2.class))
+                    .topic(topico).create()) {
+                producer.send(solicitudV2(requestedAt));
+            }
+        } else {
+            try (Producer<SolicitudTrabajoPartnerV1> producer = pulsarClient.newProducer(Schema.AVRO(SolicitudTrabajoPartnerV1.class))
+                    .topic(topico).create()) {
+                producer.send(solicitudV1(requestedAt));
+            }
         }
 
-        LOGGER.info("Demostracion de interoperabilidad publicada: contratos partner V1 y V2 enviados a Pulsar.");
+        LOGGER.info("Demostracion de partner publicada: contrato {} enviado a {} (partnerId={}).",
+                versionContrato, topico, partnerId);
     }
 
     private SolicitudTrabajoPartnerV1 solicitudV1(Instant requestedAt) {
         return SolicitudTrabajoPartnerV1.newBuilder()
                 .setId(UUID.randomUUID().toString())
                 .setCorrelationId(UUID.randomUUID().toString())
-                .setPartnerCode(PARTNER_ID)
+                .setPartnerCode(partnerId)
                 .setRequestNumber("demo-v1-" + UUID.randomUUID())
                 .setInsuredCustomerId(CLIENTE_ID)
                 .setAssistanceCode("PLUMBING")
@@ -84,7 +93,7 @@ public class PartnerContractDemoPublisher implements ApplicationRunner {
         return SolicitudTrabajoPartnerV2.newBuilder()
                 .setId(UUID.randomUUID().toString())
                 .setCorrelationId(UUID.randomUUID().toString())
-                .setPartner(PartnerReferenceV2.newBuilder().setCode(PARTNER_ID).build())
+                .setPartner(PartnerReferenceV2.newBuilder().setCode(partnerId).build())
                 .setRequest(RequestReferenceV2.newBuilder()
                         .setNumber("demo-v2-" + UUID.randomUUID())
                         .setRequestedAt(requestedAt)

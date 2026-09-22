@@ -42,6 +42,17 @@ docker compose up -d postgres pulsar redis
 Puertos expuestos: trabajos `8081`, integracion `8082`, notificaciones `8083`,
 usuarios `8084`, proveedor `8085`, trabajo-saga `8086`.
 
+> **`integracion-service` corre como 3 contenedores, no 1.** Es el mismo jar/imagen, pero cada
+> instancia solo activa una parte del servicio (ver `hda.integracion.outbound.enabled` /
+> `hda.integracion.inbound-partner.enabled` en `application.yml`): `integracion-service` (`8082`)
+> atiende solo el flujo de salida (trabajo-creado → trabajo-siniestro-creado);
+> `integracion-service-seguros-los-alpes` (`8087`) y `integracion-service-partner-b`
+> (`8088`) atienden cada uno el ACL de entrada de UN partner, en su propio topico
+> (`solicitud-trabajo-seguros-los-alpes` / `-partner-b`, contratos v1/v2 respectivamente).
+> Es la misma separacion que en `deploy/k8s/apps/21-integracion-service*.yaml`, necesaria para
+> el escenario 4 de escalabilidad (un partner sobrecargado no debe consumir la capacidad de otro)
+> — ver `docs/experiments/escenario-interoperabilidad-java.md`.
+
 > **Tenant y namespaces de Pulsar (`pulsar-init`).** Los servicios publican y consumen en
 > topicos bajo `persistent://hda/...`, que requieren que existan el tenant `hda` y sus
 > namespaces (`hda/trabajos`, `hda/integracion`, `hda/notificaciones`, `hda/proveedor`,

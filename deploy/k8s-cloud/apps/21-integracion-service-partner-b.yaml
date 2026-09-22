@@ -1,24 +1,21 @@
-# integracion-service: flujo de SALIDA -- consume trabajo-creado, publica trabajo-siniestro-creado.
-# El ACL de ENTRADA de partners esta desactivado aqui (HDA_INTEGRACION_INBOUND_PARTNER_ENABLED=false):
-# vive en Deployments dedicados por partner (21-integracion-service-seguros-los-alpes.yaml,
-# 21-integracion-service-partner-b.yaml) para que cada uno escale de forma aislada
-# (escenario 4 de escalabilidad).
+# Deployment dedicado al partner B2B2C "partner-b" (contrato v2). Mismo criterio que
+# 21-integracion-service-seguros-los-alpes.yaml (escenario 4 de escalabilidad).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: integracion-service
+  name: integracion-service-partner-b
   namespace: hda
   labels:
-    app: integracion-service
+    app: integracion-service-partner-b
 spec:
   replicas: 1   # KEDA toma el control despues; empieza en 1 para registrar la suscripcion.
   selector:
     matchLabels:
-      app: integracion-service
+      app: integracion-service-partner-b
   template:
     metadata:
       labels:
-        app: integracion-service
+        app: integracion-service-partner-b
     spec:
       containers:
         - name: integracion-service
@@ -27,8 +24,18 @@ spec:
           ports:
             - containerPort: 8082
           env:
-            - name: HDA_INTEGRACION_INBOUND_PARTNER_ENABLED
+            - name: HDA_INTEGRACION_OUTBOUND_ENABLED
               value: "false"
+            - name: PARTNER_CONTRACT_VERSION
+              value: "v2"
+            - name: PARTNER_TOPIC
+              value: "persistent://hda/partner/solicitud-trabajo-partner-b"
+            - name: PARTNER_SUBSCRIPTION
+              value: "integracion-partner-b-sub"
+            - name: PARTNER_ID
+              value: "33333333-3333-3333-3333-333333333333"
+            - name: SERVICE_NAME
+              value: "integracion-partner-b"
             - name: REDIS_HOST
               valueFrom: { configMapKeyRef: { name: hda-endpoints, key: REDIS_HOST } }
             - name: REDIS_PORT
@@ -52,11 +59,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: integracion-service
+  name: integracion-service-partner-b
   namespace: hda
 spec:
   selector:
-    app: integracion-service
+    app: integracion-service-partner-b
   ports:
     - port: 8082
       targetPort: 8082

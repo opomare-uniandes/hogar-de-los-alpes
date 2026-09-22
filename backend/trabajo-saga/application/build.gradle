@@ -11,6 +11,13 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter' // @SpringBootApplication
     implementation 'org.apache.pulsar:pulsar-client-api' // PulsarConfig expone el bean PulsarClient
     implementation 'org.springframework.boot:spring-boot-r2dbc' // spring.sql.init.mode: always
+
+    // OutboxRelay (config/outbox) necesita tanto el repositorio de outbox (trabajo-saga-r2dbc-postgresql)
+    // como el publisher de Pulsar (trabajo-saga-pulsar-event-bus); 'implementation' en esos modulos
+    // no re-expone sus propias dependencias en compileClasspath, asi que se declaran explicitas aqui.
+    implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 }
 
 bootJar {

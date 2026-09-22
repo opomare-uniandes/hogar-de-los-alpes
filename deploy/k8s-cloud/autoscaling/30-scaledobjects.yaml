@@ -1,4 +1,6 @@
-# Autoescalado por backlog de topico (KEDA + trigger pulsar).
+# Autoescalado por backlog de topico (KEDA + trigger pulsar). integracion-service (flujo de
+# salida) escala solo por su propio backlog -- el ACL de entrada de partners vive en Deployments
+# dedicados (ver mas abajo, escenario 4 de escalabilidad).
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
@@ -18,17 +20,48 @@ spec:
         topic: persistent://hda/trabajos/trabajo-creado
         subscription: integracion-service-sub
         msgBacklogThreshold: "10"
+---
+# Escenario 4 (escalabilidad): cada partner de entrada tiene su propio Deployment (ver
+# deploy/k8s-cloud/apps/21-integracion-service-*.yaml) y su propio ScaledObject con un unico
+# trigger sobre SU topico, para que un pico en un partner no consuma la capacidad del otro.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: integracion-seguros-los-alpes-scaler
+  namespace: hda
+spec:
+  scaleTargetRef:
+    name: integracion-service-seguros-los-alpes
+  minReplicaCount: 1
+  maxReplicaCount: 4
+  cooldownPeriod: 30
+  pollingInterval: 15
+  triggers:
     - type: pulsar
       metadata:
         adminURL: http://pulsar.hda.svc.cluster.local:8080
-        topic: persistent://hda/partner/solicitud-trabajo-v1
-        subscription: integracion-partner-v1-sub
+        topic: persistent://hda/partner/solicitud-trabajo-seguros-los-alpes
+        subscription: integracion-partner-seguros-los-alpes-sub
         msgBacklogThreshold: "10"
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: integracion-partner-b-scaler
+  namespace: hda
+spec:
+  scaleTargetRef:
+    name: integracion-service-partner-b
+  minReplicaCount: 1
+  maxReplicaCount: 4
+  cooldownPeriod: 30
+  pollingInterval: 15
+  triggers:
     - type: pulsar
       metadata:
         adminURL: http://pulsar.hda.svc.cluster.local:8080
-        topic: persistent://hda/partner/solicitud-trabajo-v2
-        subscription: integracion-partner-v2-sub
+        topic: persistent://hda/partner/solicitud-trabajo-partner-b
+        subscription: integracion-partner-b-sub
         msgBacklogThreshold: "10"
 ---
 apiVersion: keda.sh/v1alpha1

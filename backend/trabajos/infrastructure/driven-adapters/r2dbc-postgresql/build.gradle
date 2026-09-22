@@ -4,4 +4,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
     implementation 'org.postgresql:r2dbc-postgresql'
     runtimeOnly 'org.postgresql:postgresql' // solo para inicializar schema.sql al arrancar
+
+    // Serializacion generica del payload de outbox_evento (cualquier DomainEvent, sin registrar
+    // un mapeo Avro por tipo aqui: eso lo hace PulsarEventPublisherAdapter, invocado por OutboxRelay).
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 }
