@@ -27,8 +27,8 @@ k8s-cloud/
 │   ├── 25-proveedor-service.yaml
 │   └── 26-trabajo-saga-service.yaml
 └── autoscaling/
-    ├── 30-scaledobjects.yaml       KEDA ScaledObjects (integracion + notificaciones + proveedor, por backlog)
-    └── 31-hpa-entry-api.yaml       HPA por CPU (trabajos + usuarios; requiere metrics-server, instalado por Terraform)
+    ├── 30-scaledobjects.yaml       KEDA ScaledObjects (integracion + notificaciones + proveedor + trabajos + trabajo-saga, por backlog)
+    └── 31-hpa-entry-api.yaml       HPA por CPU (usuarios, el unico servicio de entrada que no consume Pulsar; requiere metrics-server, instalado por Terraform)
 ```
 
 ## Requisitos

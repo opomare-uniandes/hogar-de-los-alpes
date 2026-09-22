@@ -4,25 +4,25 @@ Formas aisladas de levantar el backend, de local a AWS.
 
 ```
 deploy/
-├── docker-compose/            Entorno local rapido (infra + 4 servicios)
+├── docker-compose/            Entorno local rapido (infra + 6 servicios)
 │   ├── README.md              Guia del flujo Docker Compose
 │   ├── docker-compose.yml
-│   ├── Dockerfile             Imagen compartida por los 4 servicios (selecciona el jar)
+│   ├── Dockerfile             Imagen compartida por los 6 servicios (selecciona el jar)
 │   ├── .env.example           Plantilla de variables (copiar a .env)
 │   └── postgres-init/         Script que crea la base hda_usuarios
 ├── k8s/                       Despliegue Kubernetes local con autoescalado por KEDA
 │   ├── README.md              Guia del flujo Kubernetes + KEDA
 │   ├── kind-config.yaml       Cluster local de Kind (NodePort 30081 -> localhost:8081)
 │   ├── base/                  Infra: namespace/config, secrets, Postgres, Redis, Pulsar
-│   ├── apps/                  Los 4 servicios (Deployment + Service)
+│   ├── apps/                  Los 6 servicios (Deployment + Service)
 │   └── autoscaling/           KEDA ScaledObjects (Pulsar backlog)
 ├── terraform/                 Infraestructura AWS (VPC, EKS, RDS, ElastiCache, ECR, KEDA +
 │                               AWS Load Balancer Controller) para el PoC en la nube
-└── k8s-cloud/                 Los 4 servicios + Pulsar sobre ese EKS, mismo autoescalado
+└── k8s-cloud/                 Los 6 servicios + Pulsar sobre ese EKS, mismo autoescalado
     ├── README.md              Guia del flujo AWS (EKS + Gateway API/ALB)
     ├── apply.sh               Renderiza endpoints desde `terraform output` y aplica todo
     ├── base/                  Infra: namespace/config, secrets, StorageClass, bootstrap RDS, Pulsar
-    ├── apps/                  Los 4 servicios (imagenes ECR) + Gateway API (ALB)
+    ├── apps/                  Los 6 servicios (imagenes ECR) + Gateway API (ALB)
     └── autoscaling/           KEDA ScaledObjects (identico al flujo local)
 ```
 
@@ -30,7 +30,7 @@ deploy/
 
 | Flujo | Para que | Guia |
 | --- | --- | --- |
-| **Docker Compose** | Pruebas rapidas locales (infra + 4 servicios en un comando) | [`docker-compose/README.md`](docker-compose/README.md) |
+| **Docker Compose** | Pruebas rapidas locales (infra + 6 servicios en un comando) | [`docker-compose/README.md`](docker-compose/README.md) |
 | **Kubernetes + KEDA** | Autoescalado por backlog de topico de Pulsar, local | [`k8s/README.md`](k8s/README.md) |
 | **AWS (Terraform + EKS)** | El mismo autoescalado, en la nube, con un ALB real | [`k8s-cloud/README.md`](k8s-cloud/README.md) |
 

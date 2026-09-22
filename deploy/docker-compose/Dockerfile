@@ -1,8 +1,8 @@
-# Dockerfile compartido por los 4 servicios de Hogar de los Alpes.
+# Dockerfile compartido por los 6 servicios de Hogar de los Alpes.
 #
 # El build context es backend/ (ver docker-compose.yml). Cada servicio es su propio
 # modulo Gradle bootable (p. ej. :trabajos-application, en trabajos/application/),
-# con su propio classpath -- construir uno no compila ni empaqueta los otros tres.
+# con su propio classpath -- construir uno no compila ni empaqueta los otros cinco.
 # SERVICE selecciona cual (trabajos | integracion | notificaciones | usuarios).
 #
 # Patron de 3 etapas inspirado en poc-pulsar-scaling:

@@ -1,6 +1,6 @@
 # Docker Compose — entorno local rapido
 
-Levanta la infraestructura (Postgres, Pulsar, Redis) y los 4 servicios Spring Boot en un
+Levanta la infraestructura (Postgres, Pulsar, Redis) y los 6 servicios Spring Boot en un
 solo comando. Pensado para pruebas rapidas locales. Para autoescalado, ver
 [`../k8s/README.md`](../k8s/README.md).
 
@@ -8,8 +8,8 @@ solo comando. Pensado para pruebas rapidas locales. Para autoescalado, ver
 
 ```
 docker-compose/
-├── docker-compose.yml    Infra + pulsar-init (one-shot) + 4 servicios
-├── Dockerfile            Compartido por los 4 servicios; cada uno es su propio modulo Gradle (arg SERVICE)
+├── docker-compose.yml    Infra + pulsar-init (one-shot) + 6 servicios
+├── Dockerfile            Compartido por los 6 servicios; cada uno es su propio modulo Gradle (arg SERVICE)
 ├── .env.example          Plantilla de variables (copiar a .env)
 └── postgres-init/        Script que crea la base hda_usuarios en el primer arranque
 ```
@@ -30,7 +30,7 @@ Docker Compose lee el `.env` automaticamente desde aqui.
 ```bash
 cd deploy/docker-compose
 cp .env.example .env          # ajusta al menos POSTGRES_PASSWORD
-docker compose up -d          # infra + 4 servicios
+docker compose up -d          # infra + 6 servicios
 ```
 
 Solo infra (y correr los jars por fuera con `java -jar`, como en el runbook del README raiz):
@@ -40,17 +40,18 @@ docker compose up -d postgres pulsar redis
 ```
 
 Puertos expuestos: trabajos `8081`, integracion `8082`, notificaciones `8083`,
-usuarios `8084`.
+usuarios `8084`, proveedor `8085`, trabajo-saga `8086`.
 
 > **Tenant y namespaces de Pulsar (`pulsar-init`).** Los servicios publican y consumen en
 > topicos bajo `persistent://hda/...`, que requieren que existan el tenant `hda` y sus
-> namespaces (`hda/trabajos`, `hda/integracion`, `hda/notificaciones`). Pulsar no los crea
-> solo: sin ellos, `trabajos`, `integracion` y `notificaciones` fallan al arrancar con
+> namespaces (`hda/trabajos`, `hda/integracion`, `hda/notificaciones`, `hda/proveedor`,
+> `hda/partner`). Pulsar no los crea solo: sin ellos, `trabajos`, `integracion`,
+> `notificaciones`, `proveedor` y `trabajo-saga` fallan al arrancar con
 > `Namespace not found` (solo `usuarios-service` sobrevive, porque no usa Pulsar).
 >
 > El servicio one-shot `pulsar-init` los crea automaticamente: espera a que Pulsar este
 > `healthy`, corre `pulsar-admin ... tenants/namespaces create` (idempotente) y termina.
-> Los tres servicios que dependen de Pulsar declaran
+> Los cinco servicios que dependen de Pulsar declaran
 > `depends_on: pulsar-init: condition: service_completed_successfully`, asi que solo
 > arrancan una vez que los namespaces existen. Es el equivalente en compose del Job
 > `pulsar-bootstrap` del flujo de k8s, y reemplaza el paso manual `pulsar-admin ... create`
