@@ -5,10 +5,13 @@ alternativa — ver [Alternativa: minikube](#alternativa-minikube)), con **dos f
 autoescalado complementarias**:
 
 - **Por backlog de Pulsar (KEDA)** — para los consumidores de eventos/comandos
-  (`integracion-service`, `notificaciones-service`, `proveedor-service`, `trabajo-saga-service`):
-  escalan segun el backlog de su suscripcion. `trabajos-service` combina este trigger con el de
-  CPU en el mismo ScaledObject (recibe comandos por Pulsar ademas de trafico REST). Ver
-  `autoscaling/30-scaledobjects.yaml`.
+  (`integracion-service` y sus dos instancias dedicadas de partner, `notificaciones-service`,
+  `proveedor-service`, `trabajo-saga-service`): escalan segun el backlog de su suscripcion.
+  Cada partner de entrada (`integracion-service-seguros-los-alpes`, `integracion-service-partner-b`)
+  tiene su propio Deployment y ScaledObject, para que un pico en uno no consuma la capacidad
+  del otro ni del flujo de salida (escenario 4 de escalabilidad). `trabajos-service` combina este
+  trigger con el de CPU en el mismo ScaledObject (recibe comandos por Pulsar ademas de trafico
+  REST). Ver `autoscaling/30-scaledobjects.yaml`.
 - **Por CPU (HorizontalPodAutoscaler nativo)** — para el servicio de entrada HTTP que
   **no** consume topicos (`usuarios-service`): ante un pico inesperado de llamadas no hay
   backlog que medir, asi que escala por utilizacion de CPU. Ver
@@ -29,15 +32,17 @@ k8s/
 │   ├── 10-postgres.yaml          Postgres (PVC + init ConfigMap)
 │   ├── 11-redis.yaml             Redis
 │   └── 12-pulsar.yaml            Pulsar standalone + Job que crea tenant/namespaces
-├── apps/                       Los 6 servicios (Deployment + Service)
+├── apps/                       Los 6 servicios (Deployment + Service) + 2 instancias de partner
 │   ├── 20-trabajos-service.yaml    (+ NodePort 30081 para acceso local)
-│   ├── 21-integracion-service.yaml
+│   ├── 21-integracion-service.yaml                     (flujo de SALIDA: trabajo-creado -> trabajo-siniestro-creado)
+│   ├── 21-integracion-service-seguros-los-alpes.yaml   (ACL de ENTRADA partner v1, Deployment dedicado - escenario 4)
+│   ├── 21-integracion-service-partner-b.yaml           (ACL de ENTRADA partner v2, Deployment dedicado - escenario 4)
 │   ├── 22-notificaciones-service.yaml
 │   ├── 23-usuarios-service.yaml
 │   ├── 24-proveedor-service.yaml
 │   └── 25-trabajo-saga-service.yaml
 └── autoscaling/
-    ├── 30-scaledobjects.yaml   KEDA ScaledObjects (integracion + notificaciones + proveedor + trabajo-saga por backlog; trabajos por backlog + CPU)
+    ├── 30-scaledobjects.yaml   KEDA ScaledObjects (integracion salida + 2 partners de entrada + notificaciones + proveedor + trabajo-saga por backlog; trabajos por backlog + CPU)
     └── 31-hpa-entry-api.yaml   HPA nativo por CPU (usuarios, servicio de entrada sin Pulsar)
 ```
 
@@ -100,7 +105,7 @@ kubectl apply -f deploy/k8s/autoscaling/
 
 # 6. Verificar
 kubectl get pods -n hda
-kubectl get scaledobject -n hda   # KEDA: integracion + notificaciones + proveedor + trabajos + trabajo-saga (por backlog; trabajos combina backlog + CPU)
+kubectl get scaledobject -n hda   # KEDA: integracion (salida) + 2 partners de entrada + notificaciones + proveedor + trabajos + trabajo-saga (por backlog; trabajos combina backlog + CPU)
 kubectl get hpa -n hda            # HPA:  usuarios (por CPU)
 ```
 

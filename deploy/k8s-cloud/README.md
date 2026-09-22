@@ -17,14 +17,17 @@ Internet -> ALB/Gateway -> bff-service (2 réplicas)
                              |-> trabajos-service -> RDS/hda_trabajos
                              `-> trabajo-saga-service -> RDS/hda_trabajo_saga
 
-Pulsar -> integracion-service
+Pulsar -> integracion-service (flujo de salida)
+       -> integracion-service-seguros-los-alpes (ACL partner v1, escala aislada)
+       -> integracion-service-partner-b (ACL partner v2, escala aislada)
        -> notificaciones-service -> usuarios-service -> RDS/hda_usuarios
        -> proveedor-service -> RDS/hda_proveedor
        -> trabajo-saga-service
 ```
 
 `base/` define el namespace, ConfigMap, secretos, bases auxiliares y Pulsar. `apps/`
-contiene los siete Deployments y el Gateway. `autoscaling/` configura KEDA y HPA.
+contiene los Deployments (siete servicios y las dos instancias dedicadas de partner) y el
+Gateway. `autoscaling/` configura KEDA y HPA.
 `apply.sh` renderiza los marcadores `__PLACEHOLDER__` con outputs de Terraform en un
 directorio temporal antes de aplicar los manifiestos.
 
