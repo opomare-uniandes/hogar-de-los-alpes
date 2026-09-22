@@ -1,16 +1,21 @@
 # Kubernetes + KEDA — autoescalado por backlog de Pulsar y por CPU
 
-Despliega los 4 servicios y su infraestructura en un cluster local (Kind, o minikube como
+Despliega los 6 servicios y su infraestructura en un cluster local (Kind, o minikube como
 alternativa — ver [Alternativa: minikube](#alternativa-minikube)), con **dos formas de
 autoescalado complementarias**:
 
-- **Por backlog de Pulsar (KEDA)** — para los dos consumidores de eventos
-  (`integracion-service`, `notificaciones-service`): escalan segun el backlog de su
-  suscripcion. Ver `autoscaling/30-scaledobjects.yaml`.
-- **Por CPU (HorizontalPodAutoscaler nativo)** — para los dos servicios de entrada HTTP
-  que **no** consumen topicos (`trabajos-service`, `usuarios-service`): ante un pico
-  inesperado de llamadas no hay backlog que medir, asi que escalan por utilizacion de CPU.
-  Ver `autoscaling/31-hpa-entry-api.yaml` y la seccion
+- **Por backlog de Pulsar (KEDA)** — para los consumidores de eventos/comandos
+  (`integracion-service` y sus dos instancias dedicadas de partner, `notificaciones-service`,
+  `proveedor-service`, `trabajo-saga-service`): escalan segun el backlog de su suscripcion.
+  Cada partner de entrada (`integracion-service-seguros-los-alpes`, `integracion-service-partner-b`)
+  tiene su propio Deployment y ScaledObject, para que un pico en uno no consuma la capacidad
+  del otro ni del flujo de salida (escenario 4 de escalabilidad). `trabajos-service` combina este
+  trigger con el de CPU en el mismo ScaledObject (recibe comandos por Pulsar ademas de trafico
+  REST). Ver `autoscaling/30-scaledobjects.yaml`.
+- **Por CPU (HorizontalPodAutoscaler nativo)** — para el servicio de entrada HTTP que
+  **no** consume topicos (`usuarios-service`): ante un pico inesperado de llamadas no hay
+  backlog que medir, asi que escala por utilizacion de CPU. Ver
+  `autoscaling/31-hpa-entry-api.yaml` y la seccion
   [Autoescalado por CPU](#autoescalado-por-cpu-servicios-de-entrada).
 
 Para pruebas rapidas sin autoescalado, ver
@@ -27,16 +32,18 @@ k8s/
 │   ├── 10-postgres.yaml          Postgres (PVC + init ConfigMap)
 │   ├── 11-redis.yaml             Redis
 │   └── 12-pulsar.yaml            Pulsar standalone + Job que crea tenant/namespaces
-├── apps/                       Los 6 servicios (Deployment + Service)
+├── apps/                       Los 6 servicios (Deployment + Service) + 2 instancias de partner
 │   ├── 20-trabajos-service.yaml    (+ NodePort 30081 para acceso local)
-│   ├── 21-integracion-service.yaml
+│   ├── 21-integracion-service.yaml                     (flujo de SALIDA: trabajo-creado -> trabajo-siniestro-creado)
+│   ├── 21-integracion-service-seguros-los-alpes.yaml   (ACL de ENTRADA partner v1, Deployment dedicado - escenario 4)
+│   ├── 21-integracion-service-partner-b.yaml           (ACL de ENTRADA partner v2, Deployment dedicado - escenario 4)
 │   ├── 22-notificaciones-service.yaml
 │   ├── 23-usuarios-service.yaml
 │   ├── 24-proveedor-service.yaml
 │   └── 25-trabajo-saga-service.yaml
 └── autoscaling/
-    ├── 30-scaledobjects.yaml   KEDA ScaledObjects (integracion + notificaciones + proveedor, por backlog)
-    └── 31-hpa-entry-api.yaml   HPA nativo por CPU (trabajos + usuarios, servicios de entrada)
+    ├── 30-scaledobjects.yaml   KEDA ScaledObjects (integracion salida + 2 partners de entrada + notificaciones + proveedor + trabajo-saga por backlog; trabajos por backlog + CPU)
+    └── 31-hpa-entry-api.yaml   HPA nativo por CPU (usuarios, servicio de entrada sin Pulsar)
 ```
 
 Las cadenas de conexion salen del ConfigMap `hda-endpoints` y el Secret
@@ -98,13 +105,13 @@ kubectl apply -f deploy/k8s/autoscaling/
 
 # 6. Verificar
 kubectl get pods -n hda
-kubectl get scaledobject -n hda   # KEDA: integracion + notificaciones + proveedor (por backlog)
-kubectl get hpa -n hda            # HPA:  trabajos + usuarios (por CPU)
+kubectl get scaledobject -n hda   # KEDA: integracion (salida) + 2 partners de entrada + notificaciones + proveedor + trabajos + trabajo-saga (por backlog; trabajos combina backlog + CPU)
+kubectl get hpa -n hda            # HPA:  usuarios (por CPU)
 ```
 
 > El `Dockerfile` vive en `deploy/docker-compose/` y lo comparten ambos flujos: cada
 > servicio es su propio modulo Gradle bootable, seleccionado via el arg `SERVICE`
-> (trabajos/integracion/notificaciones/usuarios).
+> (trabajos/integracion/notificaciones/usuarios/proveedor/trabajo-saga).
 
 ## Probar el autoescalado
 
@@ -268,7 +275,7 @@ URL que hayas obtenido. El comportamiento de KEDA es identico al del flujo de Ki
 
 ### Enviar metricas, trazas y logs al Grafana local (OTLP)
 
-Los cuatro servicios exportan **metricas**, **trazas** y **logs** por OTLP/HTTP (Arconia OTel
+Los seis servicios exportan **metricas**, **trazas** y **logs** por OTLP/HTTP (Arconia OTel
 -> `/v1/metrics`, `/v1/traces`, `/v1/logs`). El `ConfigMap hda-endpoints`
 (`base/00-namespace-config.yaml`) trae `OTEL_COLLECTOR_HOST: "http://host.minikube.internal:4318"`
 por defecto — el host-gateway de **minikube** (tu maquina, donde corre Grafana en `:4318`).
@@ -282,7 +289,8 @@ kubectl patch configmap hda-endpoints -n hda --type merge \
 
 # Si ya habias desplegado apps/, reinicia para que tomen el nuevo valor:
 kubectl rollout restart deployment -n hda \
-  trabajos-service integracion-service notificaciones-service usuarios-service
+  trabajos-service integracion-service notificaciones-service usuarios-service \
+  proveedor-service trabajo-saga-service
 ```
 
 > `host.minikube.internal` lo resuelve minikube automaticamente dentro de la VM; no hace
@@ -300,7 +308,7 @@ oha -z 60s -c 50 -m POST -T 'application/json' \
 ```
 
 - **Metricas:** en Grafana, explora la fuente de metricas (Prometheus/Mimir) y busca series
-  con la etiqueta `service_name` = `trabajos`/`integracion`/`notificaciones`/`usuarios`
+  con la etiqueta `service_name` = `trabajos`/`integracion`/`notificaciones`/`usuarios`/`proveedor`/`trabajo-saga`
   (ver `resource-attributes.service.name` en cada `application.yml`). El `step` de export es
   `1m`, asi que da hasta un minuto.
 - **Trazas:** en la fuente de trazas (Tempo), filtra por `service.name` = `trabajos`; deben

@@ -1,3 +1,8 @@
+# integracion-service: flujo de SALIDA -- consume trabajo-creado, publica trabajo-siniestro-creado.
+# El ACL de ENTRADA de partners esta desactivado aqui (HDA_INTEGRACION_INBOUND_PARTNER_ENABLED=false):
+# vive en Deployments dedicados por partner (21-integracion-service-seguros-los-alpes.yaml,
+# 21-integracion-service-partner-b.yaml) para que cada uno escale de forma aislada
+# (escenario 4 de escalabilidad).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -22,6 +27,8 @@ spec:
           ports:
             - containerPort: 8082
           env:
+            - name: HDA_INTEGRACION_INBOUND_PARTNER_ENABLED
+              value: "false"
             - name: REDIS_HOST
               valueFrom: { configMapKeyRef: { name: hda-endpoints, key: REDIS_HOST } }
             - name: REDIS_PORT

@@ -1,0 +1,69 @@
+# Deployment dedicado al partner B2B2C "partner-b" (contrato v2). Mismo criterio que
+# 21-integracion-service-seguros-los-alpes.yaml (escenario 4 de escalabilidad).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: integracion-service-partner-b
+  namespace: hda
+  labels:
+    app: integracion-service-partner-b
+spec:
+  replicas: 1   # KEDA toma el control despues; empieza en 1 para registrar la suscripcion.
+  selector:
+    matchLabels:
+      app: integracion-service-partner-b
+  template:
+    metadata:
+      labels:
+        app: integracion-service-partner-b
+    spec:
+      containers:
+        - name: integracion-service
+          image: __INTEGRACION_IMAGE__
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8082
+          env:
+            - name: HDA_INTEGRACION_OUTBOUND_ENABLED
+              value: "false"
+            - name: PARTNER_CONTRACT_VERSION
+              value: "v2"
+            - name: PARTNER_TOPIC
+              value: "persistent://hda/partner/solicitud-trabajo-partner-b"
+            - name: PARTNER_SUBSCRIPTION
+              value: "integracion-partner-b-sub"
+            - name: PARTNER_ID
+              value: "33333333-3333-3333-3333-333333333333"
+            - name: SERVICE_NAME
+              value: "integracion-partner-b"
+            - name: REDIS_HOST
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: REDIS_HOST } }
+            - name: REDIS_PORT
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: REDIS_PORT } }
+            - name: PULSAR_SERVICE_URL
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: PULSAR_SERVICE_URL } }
+            - name: PULSAR_ADMIN_URL
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: PULSAR_ADMIN_URL } }
+            - name: OTEL_COLLECTOR_HOST
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: OTEL_COLLECTOR_HOST } }
+            - name: OTEL_TRACING_SAMPLING
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: OTEL_TRACING_SAMPLING } }
+            - name: SERVICE_ENV
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: SERVICE_ENV } }
+            - name: OTEL_EXPORTER_OTLP_HEADERS_AUTHORIZATION
+              valueFrom: { secretKeyRef: { name: otel-credentials, key: OTEL_EXPORTER_OTLP_HEADERS_AUTHORIZATION } }
+          resources:
+            requests: { memory: "384Mi", cpu: "200m" }
+            limits: { memory: "768Mi", cpu: "1" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: integracion-service-partner-b
+  namespace: hda
+spec:
+  selector:
+    app: integracion-service-partner-b
+  ports:
+    - port: 8082
+      targetPort: 8082

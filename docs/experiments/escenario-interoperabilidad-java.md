@@ -8,7 +8,8 @@ Hogar de los Alpes puede recibir solicitudes de asistencia de partners que usan 
 
 | Elemento | Implementacion |
 | --- | --- |
-| Contratos externos | Avro `SolicitudTrabajoPartnerV1` y `SolicitudTrabajoPartnerV2` en topicos separados. V2 reorganiza los mismos datos en objetos anidados. |
+| Contratos externos | Avro `SolicitudTrabajoPartnerV1` y `SolicitudTrabajoPartnerV2` en topicos separados **por partner** (no solo por version): `seguros-los-alpes` usa V1, `partner-b` usa V2. V2 reorganiza los mismos datos en objetos anidados. |
+| Aislamiento por partner | Cada partner tiene su propia instancia de `integracion-service` (mismo jar, `hda.pulsar.partner.*` distinto por entorno) consumiendo solo su topico — ver escenario de escalabilidad "pico por evento climatico": un partner sobrecargado no consume la capacidad del otro ni del flujo de salida (`hda.integracion.outbound.enabled=false` en las instancias de partner). |
 | ACL | `SolicitudTrabajoPartnerMapper` adapta ambas versiones a `SolicitudTrabajoPartner`; `TraducirSolicitudPartnerUseCase` valida y traduce codigos de asistencia, prioridad y ciudad. |
 | Contrato interno | Avro `CrearTrabajoCommandV1`, publicado en `persistent://hda/trabajos/crear-trabajo-command`. |
 | Consumidor de destino | `CrearTrabajoCommandListener` en `trabajos-service`, que convierte el comando canonico al caso de uso existente y crea el agregado `Trabajo`. |
@@ -19,13 +20,18 @@ La topologia es asincrona y basada en comandos/eventos: un partner no llama dire
 
 ```mermaid
 flowchart LR
-    P1["Partner V1"] -->|"solicitud-trabajo-v1"| ACL["integracion-service / ACL"]
-    P2["Partner V2"] -->|"solicitud-trabajo-v2"| ACL
-    ACL -->|"CrearTrabajoCommandV1"| T["trabajos-service"]
-    ACL -->|"SolicitudTrabajoRechazadaV1"| R["Tópico de rechazo"]
-    ACL <--> D[(Redis: idempotencia)]
+    P1["Seguros de los Alpes (V1)"] -->|"solicitud-trabajo-seguros-los-alpes"| ACL1["integracion-service-seguros-los-alpes"]
+    P2["Partner B (V2)"] -->|"solicitud-trabajo-partner-b"| ACL2["integracion-service-partner-b"]
+    ACL1 -->|"CrearTrabajoCommandV1"| T["trabajos-service"]
+    ACL2 -->|"CrearTrabajoCommandV1"| T
+    ACL1 -->|"SolicitudTrabajoRechazadaV1"| R["Tópico de rechazo"]
+    ACL2 -->|"SolicitudTrabajoRechazadaV1"| R
+    ACL1 <--> D[(Redis: idempotencia)]
+    ACL2 <--> D
     T --> DB[(PostgreSQL: agregados Trabajo)]
 ```
+
+Cada instancia (`integracion-service-seguros-los-alpes`, `integracion-service-partner-b`) es el mismo jar, escuchando solo su propio topico/version — no hay ninguna instancia que conozca ambos contratos a la vez. Eso es lo que le permite a cada partner escalar de forma aislada (ver `deploy/k8s/autoscaling/30-scaledobjects.yaml`: un `ScaledObject` por partner, cada uno con un unico trigger sobre su propio topico).
 
 ## Como ejecutar la evidencia local
 
@@ -34,16 +40,16 @@ Desde la raiz del repositorio:
 ```bash
 cd deploy/docker-compose
 HDA_DEMO_PARTNER_ENABLED=true docker compose up -d --build
-docker compose logs --follow integracion-service trabajos-service
+docker compose logs --follow integracion-service-seguros-los-alpes integracion-service-partner-b trabajos-service
 ```
 
-La propiedad activa `PartnerContractDemoPublisher` **solo para la demostracion**. El publicador emite una solicitud V1 (`PLUMBING`, `P1`, `BOG`) y otra V2 (`ELECTRICAL`, `P2`, `MDE`). En los logs debe observarse que Integracion las consume y que Trabajos procesa los comandos resultantes.
+`HDA_DEMO_PARTNER_ENABLED=true` activa `PartnerContractDemoPublisher` en **ambas** instancias de partner (cada una publica una unica solicitud, con el contrato y hacia el topico que ella misma consume): `integracion-service-seguros-los-alpes` emite una V1 (`PLUMBING`, `P1`, `BOG`), `integracion-service-partner-b` emite una V2 (`ELECTRICAL`, `P2`, `MDE`). En los logs debe observarse que cada instancia consume solo la suya y que Trabajos procesa ambos comandos resultantes.
 
 Para verificar que los dos contratos llegaron y que Trabajos persistio los agregados:
 
 ```bash
-docker compose exec pulsar bin/pulsar-admin topics stats persistent://hda/partner/solicitud-trabajo-v1
-docker compose exec pulsar bin/pulsar-admin topics stats persistent://hda/partner/solicitud-trabajo-v2
+docker compose exec pulsar bin/pulsar-admin topics stats persistent://hda/partner/solicitud-trabajo-seguros-los-alpes
+docker compose exec pulsar bin/pulsar-admin topics stats persistent://hda/partner/solicitud-trabajo-partner-b
 docker compose exec postgres psql -U hda -d hda_trabajos -c 'SELECT id, categoria_servicio, urgencia, ciudad, origen FROM trabajo ORDER BY fecha_creacion DESC LIMIT 5;'
 ```
 

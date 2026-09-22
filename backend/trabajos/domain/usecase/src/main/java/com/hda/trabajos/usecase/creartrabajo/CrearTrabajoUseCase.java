@@ -4,18 +4,15 @@ import com.hda.trabajos.model.seedwork.AggregateRoot;
 import com.hda.trabajos.model.trabajo.CategoriaServicio;
 import com.hda.trabajos.model.trabajo.Moneda;
 import com.hda.trabajos.model.trabajo.Trabajo;
-import com.hda.trabajos.model.trabajo.gateways.TrabajoEventPublisher;
 import com.hda.trabajos.model.trabajo.gateways.TrabajoRepository;
 import reactor.core.publisher.Mono;
 
 public class CrearTrabajoUseCase {
 
     private final TrabajoRepository trabajoRepository;
-    private final TrabajoEventPublisher eventPublisher;
 
-    public CrearTrabajoUseCase(TrabajoRepository trabajoRepository, TrabajoEventPublisher eventPublisher) {
+    public CrearTrabajoUseCase(TrabajoRepository trabajoRepository) {
         this.trabajoRepository = trabajoRepository;
-        this.eventPublisher = eventPublisher;
     }
 
     public Mono<Trabajo> ejecutar(CrearTrabajoCommand comando) {
@@ -29,10 +26,10 @@ public class CrearTrabajoUseCase {
                 new Moneda(comando.moneda() == null ? "COP" : comando.moneda())
         );
 
+        // La publicacion del evento ya no ocurre aqui: TrabajoRepositoryAdapter.guardar() lo
+        // inserta en outbox_evento en la misma transaccion del agregado; OutboxRelay lo envia
+        // a Pulsar despues (ver patron Transactional Outbox).
         return trabajoRepository.guardar(trabajo)
-                .flatMap(trabajoGuardado ->
-                        eventPublisher.publicarTodos(trabajoGuardado.eventosDeDominio())
-                                .thenReturn(trabajoGuardado))
                 .doOnNext(AggregateRoot::limpiarEventos);
     }
 }

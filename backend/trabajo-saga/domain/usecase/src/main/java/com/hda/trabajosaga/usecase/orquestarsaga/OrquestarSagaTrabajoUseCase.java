@@ -2,23 +2,23 @@ package com.hda.trabajosaga.usecase.orquestarsaga;
 
 import com.hda.trabajosaga.model.sagatrabajo.EstadoSaga;
 import com.hda.trabajosaga.model.sagatrabajo.SagaTrabajo;
-import com.hda.trabajosaga.model.sagatrabajo.gateways.SagaTrabajoEventPublisher;
 import com.hda.trabajosaga.model.sagatrabajo.gateways.SagaTrabajoRepository;
 import reactor.core.publisher.Mono;
 
 /**
  * Maquina de estados de la saga "Asignacion de trabajo con proveedor" (seccion 4.2 del plan).
  * Un metodo publico por cada uno de los 6 eventos que la orquestan; cada uno delega la
- * transicion (y su idempotencia) al agregado SagaTrabajo y publica los comandos resultantes.
+ * transicion (y su idempotencia) al agregado SagaTrabajo. La publicacion de los comandos
+ * resultantes ya no ocurre aqui: SagaTrabajoRepositoryAdapter.guardar() los inserta en
+ * outbox_evento en la misma transaccion del agregado; OutboxRelay los envia a Pulsar despues
+ * (ver patron Transactional Outbox).
  */
 public class OrquestarSagaTrabajoUseCase {
 
     private final SagaTrabajoRepository repository;
-    private final SagaTrabajoEventPublisher eventPublisher;
 
-    public OrquestarSagaTrabajoUseCase(SagaTrabajoRepository repository, SagaTrabajoEventPublisher eventPublisher) {
+    public OrquestarSagaTrabajoUseCase(SagaTrabajoRepository repository) {
         this.repository = repository;
-        this.eventPublisher = eventPublisher;
     }
 
     /** TrabajoCreado -> crea saga_trabajo (INICIADA) y pide RESERVAR_PROVEEDOR. Idempotente por
@@ -86,7 +86,7 @@ public class OrquestarSagaTrabajoUseCase {
 
     private Mono<Void> guardarYPublicar(SagaTrabajo saga) {
         return repository.guardar(saga)
-                .flatMap(guardada -> eventPublisher.publicarTodos(guardada.eventosDeDominio())
-                        .doOnSuccess(v -> guardada.limpiarEventos()));
+                .doOnSuccess(SagaTrabajo::limpiarEventos)
+                .then();
     }
 }

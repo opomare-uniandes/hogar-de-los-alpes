@@ -11,6 +11,7 @@ import com.hda.eventos.partner.v2.SolicitudTrabajoPartnerV2;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.Schema;
+import org.apache.pulsar.client.api.TypedMessageBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -19,57 +20,100 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
- * Publicador opcional para demostrar la convivencia de los contratos de partner V1 y V2.
+ * Publicador opcional para demostrar el contrato del partner que ESTA instancia de
+ * integracion-service atiende (hda.pulsar.partner.* -- ver SolicitudTrabajoPartnerListener).
  *
- * No participa en el flujo productivo: solo se activa con HDA_DEMO_PARTNER_ENABLED=true.
- * Publica dos solicitudes semanticamente validas pero con estructuras externas distintas;
- * ambas pasan por el ACL de integracion-service y terminan como comandos canonicos.
+ * No participa en el flujo productivo: solo se activa con HDA_DEMO_PARTNER_ENABLED=true. Publica
+ * hda.demo.partner.count solicitudes (default 1) con la version de contrato y hacia el topico que
+ * esta instancia consume, simulando trafico entrante de SU partner. Con count alto es el generador
+ * de carga del escenario 4: publica un lote (carga base o pico 4x) en el topico de un partner
+ * especifico y se observa que solo su Deployment/ScaledObject reacciona, sin tocar al otro partner
+ * ni al flujo de salida.
  */
 @Component
 @ConditionalOnProperty(prefix = "hda.demo.partner", name = "enabled", havingValue = "true")
 public class PartnerContractDemoPublisher implements ApplicationRunner {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PartnerContractDemoPublisher.class);
-    private static final String PARTNER_ID = "11111111-1111-1111-1111-111111111111";
     private static final String CLIENTE_ID = "22222222-2222-2222-2222-222222222222";
 
     private final PulsarClient pulsarClient;
-    private final String topicV1;
-    private final String topicV2;
+    private final String versionContrato;
+    private final String topico;
+    private final String partnerId;
+    private final int count;
+    private final int ratePerSecond;
 
     public PartnerContractDemoPublisher(
             PulsarClient pulsarClient,
-            @Value("${hda.pulsar.topic-solicitud-partner-v1}") String topicV1,
-            @Value("${hda.pulsar.topic-solicitud-partner-v2}") String topicV2) {
+            @Value("${hda.pulsar.partner.contract-version}") String versionContrato,
+            @Value("${hda.pulsar.partner.topic}") String topico,
+            @Value("${hda.demo.partner.partner-id}") String partnerId,
+            @Value("${hda.demo.partner.count:1}") int count,
+            @Value("${hda.demo.partner.rate-per-second:0}") int ratePerSecond) {
         this.pulsarClient = pulsarClient;
-        this.topicV1 = topicV1;
-        this.topicV2 = topicV2;
+        this.versionContrato = versionContrato;
+        this.topico = topico;
+        this.partnerId = partnerId;
+        this.count = count;
+        this.ratePerSecond = ratePerSecond;
     }
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
-        Instant requestedAt = Instant.now();
-
-        try (Producer<SolicitudTrabajoPartnerV1> producerV1 = pulsarClient.newProducer(Schema.AVRO(SolicitudTrabajoPartnerV1.class))
-                .topic(topicV1).create();
-             Producer<SolicitudTrabajoPartnerV2> producerV2 = pulsarClient.newProducer(Schema.AVRO(SolicitudTrabajoPartnerV2.class))
-                     .topic(topicV2).create()) {
-            producerV1.send(solicitudV1(requestedAt));
-            producerV2.send(solicitudV2(requestedAt));
+        Instant inicio = Instant.now();
+        if ("v2".equalsIgnoreCase(versionContrato)) {
+            publicarLote(Schema.AVRO(SolicitudTrabajoPartnerV2.class), () -> solicitudV2(Instant.now()));
+        } else {
+            publicarLote(Schema.AVRO(SolicitudTrabajoPartnerV1.class), () -> solicitudV1(Instant.now()));
         }
+        Duration transcurrido = Duration.between(inicio, Instant.now());
+        LOGGER.info("Carga de partner publicada: {} solicitudes de contrato {} a {} (partnerId={}) en {} ms.",
+                count, versionContrato, topico, partnerId, transcurrido.toMillis());
+    }
 
-        LOGGER.info("Demostracion de interoperabilidad publicada: contratos partner V1 y V2 enviados a Pulsar.");
+    /**
+     * Publica el lote reutilizando un unico Producer y sendAsync para lograr throughput real; si
+     * rate-per-second es mayor que 0, espacia los envios para sostener aproximadamente esa tasa,
+     * de modo que un lote grande genere backlog gradual en la suscripcion del partner en vez de
+     * un unico burst instantaneo. Espera a que todos los envios se confirmen antes de terminar.
+     */
+    private <T> void publicarLote(Schema<T> schema, java.util.function.Supplier<T> fabrica) throws Exception {
+        try (Producer<T> producer = pulsarClient.newProducer(schema).topic(topico).create()) {
+            List<CompletableFuture<?>> enviados = new ArrayList<>(count);
+            long intervaloNanos = ratePerSecond > 0 ? 1_000_000_000L / ratePerSecond : 0;
+            for (int i = 0; i < count; i++) {
+                TypedMessageBuilder<T> mensaje = producer.newMessage().value(fabrica.get());
+                enviados.add(mensaje.sendAsync());
+                if (intervaloNanos > 0 && i < count - 1) {
+                    esperar(intervaloNanos);
+                }
+            }
+            CompletableFuture.allOf(enviados.toArray(CompletableFuture[]::new)).join();
+        }
+    }
+
+    private void esperar(long nanos) {
+        try {
+            Thread.sleep(Duration.ofNanos(nanos));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private SolicitudTrabajoPartnerV1 solicitudV1(Instant requestedAt) {
         return SolicitudTrabajoPartnerV1.newBuilder()
                 .setId(UUID.randomUUID().toString())
                 .setCorrelationId(UUID.randomUUID().toString())
-                .setPartnerCode(PARTNER_ID)
+                .setPartnerCode(partnerId)
                 .setRequestNumber("demo-v1-" + UUID.randomUUID())
                 .setInsuredCustomerId(CLIENTE_ID)
                 .setAssistanceCode("PLUMBING")
@@ -84,7 +128,7 @@ public class PartnerContractDemoPublisher implements ApplicationRunner {
         return SolicitudTrabajoPartnerV2.newBuilder()
                 .setId(UUID.randomUUID().toString())
                 .setCorrelationId(UUID.randomUUID().toString())
-                .setPartner(PartnerReferenceV2.newBuilder().setCode(PARTNER_ID).build())
+                .setPartner(PartnerReferenceV2.newBuilder().setCode(partnerId).build())
                 .setRequest(RequestReferenceV2.newBuilder()
                         .setNumber("demo-v2-" + UUID.randomUUID())
                         .setRequestedAt(requestedAt)

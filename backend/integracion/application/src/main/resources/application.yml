@@ -16,13 +16,38 @@ hda:
     admin-url: ${PULSAR_ADMIN_URL:http://localhost:8080}
     topic-trabajo-creado: persistent://hda/trabajos/trabajo-creado
     topic-trabajo-siniestro-creado: persistent://hda/integracion/trabajo-siniestro-creado
-    topic-solicitud-partner-v1: persistent://hda/partner/solicitud-trabajo-v1
-    topic-solicitud-partner-v2: persistent://hda/partner/solicitud-trabajo-v2
     topic-crear-trabajo-command: persistent://hda/trabajos/crear-trabajo-command
     topic-solicitud-partner-rechazada: persistent://hda/partner/solicitud-trabajo-rechazada-v1
     subscription: integracion-service-sub
-    subscription-partner-v1: integracion-partner-v1-sub
-    subscription-partner-v2: integracion-partner-v2-sub
+    # Un solo partner por instancia de este servicio (ver escenario 4 de escalabilidad):
+    # cada partner tiene su propio topico/suscripcion y su propio Deployment+ScaledObject en k8s
+    # (deploy/k8s/apps/21-integracion-service-*.yaml), asi que ninguno consume la capacidad de
+    # otro ante un pico de trafico. Los valores de aqui son el default local (partner "Seguros de
+    # los Alpes", contrato v1); en k8s cada Deployment los sobreescribe por variables de entorno.
+    partner:
+      contract-version: ${PARTNER_CONTRACT_VERSION:v1}
+      topic: ${PARTNER_TOPIC:persistent://hda/partner/solicitud-trabajo-seguros-los-alpes}
+      subscription: ${PARTNER_SUBSCRIPTION:integracion-partner-seguros-los-alpes-sub}
+  integracion:
+    # Los dos flujos de integracion-service (salida: trabajo-creado->trabajo-siniestro-creado;
+    # entrada: ACL de partner) viven en el mismo jar pero se activan/desactivan por separado, para
+    # poder desplegar una instancia dedicada por partner que SOLO atienda su ACL de entrada (ver
+    # SolicitudTrabajoPartnerListener / TrabajoCreadoListener). Por defecto ambos estan activos,
+    # que es el comportamiento de siempre (un solo integracion-service haciendo las dos cosas).
+    outbound:
+      enabled: ${HDA_INTEGRACION_OUTBOUND_ENABLED:true}
+    inbound-partner:
+      enabled: ${HDA_INTEGRACION_INBOUND_PARTNER_ENABLED:true}
+  demo:
+    partner:
+      enabled: false
+      partner-id: ${PARTNER_ID:11111111-1111-1111-1111-111111111111}
+      # Generador de carga del escenario 4 (solo activo con HDA_DEMO_PARTNER_ENABLED=true).
+      # count: cuantas solicitudes publicar en el topico de ESTE partner (default 1 = demo simple).
+      # rate-per-second: si es mayor que 0, espacia los envios a esa tasa aprox. para generar
+      # backlog gradual; 0 = burst lo mas rapido posible.
+      count: ${HDA_DEMO_PARTNER_COUNT:1}
+      rate-per-second: ${HDA_DEMO_PARTNER_RATE:0}
   idempotencia:
     ttl: PT24H
 

@@ -1,26 +1,26 @@
 package com.hda.proveedor.usecase.liberarproveedor;
 
-import com.hda.proveedor.model.proveedor.gateways.ProveedorEventPublisher;
 import com.hda.proveedor.model.proveedor.gateways.ProveedorRepository;
 import reactor.core.publisher.Mono;
 
 public class LiberarProveedorUseCase {
 
     private final ProveedorRepository proveedorRepository;
-    private final ProveedorEventPublisher eventPublisher;
 
-    public LiberarProveedorUseCase(ProveedorRepository proveedorRepository, ProveedorEventPublisher eventPublisher) {
+    public LiberarProveedorUseCase(ProveedorRepository proveedorRepository) {
         this.proveedorRepository = proveedorRepository;
-        this.eventPublisher = eventPublisher;
     }
 
     public Mono<Void> ejecutar(LiberarProveedorCommand comando) {
+        // La publicacion del evento ya no ocurre aqui: ProveedorRepositoryAdapter.guardar() lo
+        // inserta en outbox_evento en la misma transaccion del agregado; OutboxRelay lo envia
+        // a Pulsar despues (ver patron Transactional Outbox).
         return proveedorRepository.buscarPorId(comando.proveedorId())
                 .flatMap(proveedor -> {
                     proveedor.liberar(comando.sagaId());
                     return proveedorRepository.guardar(proveedor);
                 })
-                .flatMap(guardado -> eventPublisher.publicarTodos(guardado.eventosDeDominio())
-                        .doOnSuccess(v -> guardado.limpiarEventos()));
+                .doOnSuccess(guardado -> guardado.limpiarEventos())
+                .then();
     }
 }

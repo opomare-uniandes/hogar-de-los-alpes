@@ -31,3 +31,19 @@ CREATE TABLE IF NOT EXISTS saga_paso (
     ocurrido_en     TIMESTAMP NOT NULL,
     UNIQUE (saga_id, paso)                       -- soporta el chequeo de idempotencia de la seccion 3
 );
+
+-- Outbox transaccional (patron Transactional Outbox): SagaTrabajoRepositoryAdapter.guardar()
+-- inserta aqui los eventos de dominio en la MISMA transaccion que saga_trabajo/saga_paso, para
+-- que avanzar el estado de la saga y registrar el comando de salida pendiente sean atomicos.
+-- OutboxRelay (modulo application) lee publicado_en IS NULL y los envia a Pulsar.
+CREATE TABLE IF NOT EXISTS outbox_evento (
+    id              UUID PRIMARY KEY,
+    tipo_evento     VARCHAR(100) NOT NULL,
+    payload         TEXT NOT NULL,
+    ocurrido_en     TIMESTAMP NOT NULL,
+    publicado_en    TIMESTAMP NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_outbox_evento_pendiente
+    ON outbox_evento (ocurrido_en)
+    WHERE publicado_en IS NULL;

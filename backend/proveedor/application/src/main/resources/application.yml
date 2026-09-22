@@ -16,6 +16,8 @@ spring:
       schema-locations: classpath:proveedor/schema.sql
 
 hda:
+  outbox:
+    polling-interval: PT2S   # OutboxRelay: cada cuanto revisa outbox_evento por publicar
   pulsar:
     service-url: ${PULSAR_SERVICE_URL:pulsar://localhost:6650}
     admin-url: ${PULSAR_ADMIN_URL:http://localhost:8080}

@@ -1,4 +1,7 @@
-# Autoescalado por backlog de topico (KEDA + trigger pulsar)
+# Autoescalado por backlog de topico (KEDA + trigger pulsar). integracion-service (flujo de
+# salida: TrabajoCreadoListener, notifica a partners externos de trabajos ya creados) escala
+# solo por SU propio backlog -- no incluye el ACL de entrada de partners, que ahora vive en
+# Deployments dedicados (ver mas abajo, escenario 4 de escalabilidad).
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
@@ -17,6 +20,50 @@ spec:
         adminURL: http://pulsar.hda.svc.cluster.local:8080
         topic: persistent://hda/trabajos/trabajo-creado
         subscription: integracion-service-sub
+        msgBacklogThreshold: "10"
+---
+# Escenario 4 (escalabilidad): "un partner sobrecargado no consume la capacidad de otro". Cada
+# partner de entrada tiene su propio Deployment (ver deploy/k8s/apps/21-integracion-service-*.yaml)
+# y su propio ScaledObject con un unico trigger sobre SU topico -- un pico de hasta 4x en un
+# partner escala solo sus propias replicas, sin tocar el ScaledObject (ni las replicas) del otro.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: integracion-seguros-los-alpes-scaler
+  namespace: hda
+spec:
+  scaleTargetRef:
+    name: integracion-service-seguros-los-alpes
+  minReplicaCount: 1
+  maxReplicaCount: 4
+  cooldownPeriod: 30
+  pollingInterval: 15
+  triggers:
+    - type: pulsar
+      metadata:
+        adminURL: http://pulsar.hda.svc.cluster.local:8080
+        topic: persistent://hda/partner/solicitud-trabajo-seguros-los-alpes
+        subscription: integracion-partner-seguros-los-alpes-sub
+        msgBacklogThreshold: "10"
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: integracion-partner-b-scaler
+  namespace: hda
+spec:
+  scaleTargetRef:
+    name: integracion-service-partner-b
+  minReplicaCount: 1
+  maxReplicaCount: 4
+  cooldownPeriod: 30
+  pollingInterval: 15
+  triggers:
+    - type: pulsar
+      metadata:
+        adminURL: http://pulsar.hda.svc.cluster.local:8080
+        topic: persistent://hda/partner/solicitud-trabajo-partner-b
+        subscription: integracion-partner-b-sub
         msgBacklogThreshold: "10"
 ---
 apiVersion: keda.sh/v1alpha1
@@ -57,4 +104,100 @@ spec:
         adminURL: http://pulsar.hda.svc.cluster.local:8080
         topic: persistent://hda/proveedor/reservar-proveedor-command
         subscription: proveedor-reservar-command-sub
+        msgBacklogThreshold: "10"
+---
+# trabajos-service atiende su API REST (crear/consultar trabajo) Y consume 3 comandos Pulsar
+# (crear/asignar/cancelar-trabajo-command) en el mismo deployable (ver trabajos-application).
+# Trigger CPU cubre la carga REST; los 3 triggers pulsar cubren el rezago de los comandos, que
+# es la parte de "orquestacion de trabajos" que el escenario de escalabilidad exige que reaccione
+# a eventos pendientes y no solo a CPU/RAM. KEDA escala al maximo que pida cualquier trigger.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: trabajos-service-scaler
+  namespace: hda
+spec:
+  scaleTargetRef:
+    name: trabajos-service
+  minReplicaCount: 1
+  maxReplicaCount: 5
+  cooldownPeriod: 30
+  pollingInterval: 15
+  triggers:
+    - type: cpu
+      metadata:
+        type: Utilization
+        value: "60"
+    - type: pulsar
+      metadata:
+        adminURL: http://pulsar.hda.svc.cluster.local:8080
+        topic: persistent://hda/trabajos/crear-trabajo-command
+        subscription: trabajos-crear-command-sub
+        msgBacklogThreshold: "10"
+    - type: pulsar
+      metadata:
+        adminURL: http://pulsar.hda.svc.cluster.local:8080
+        topic: persistent://hda/trabajos/asignar-trabajo-command
+        subscription: trabajos-asignar-command-sub
+        msgBacklogThreshold: "10"
+    - type: pulsar
+      metadata:
+        adminURL: http://pulsar.hda.svc.cluster.local:8080
+        topic: persistent://hda/trabajos/cancelar-trabajo-command
+        subscription: trabajos-cancelar-command-sub
+        msgBacklogThreshold: "10"
+---
+# trabajo-saga-service es el motor de asignacion (orquestador de la saga). Antes tenia
+# replicas fijas en 1 sin autoescalado; escala por el rezago de cada una de sus 6 suscripciones,
+# ya que cualquiera de ellas puede acumular backlog segun en que paso de la saga este el pico
+# de trabajo. Requiere ConsumoEnVueloTracker + terminationGracePeriodSeconds (ver
+# 25-trabajo-saga-service.yaml) para que el scale-down no interrumpa un guardar() a mitad.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: trabajo-saga-service-scaler
+  namespace: hda
+spec:
+  scaleTargetRef:
+    name: trabajo-saga-service
+  minReplicaCount: 1
+  maxReplicaCount: 6
+  cooldownPeriod: 30
+  pollingInterval: 15
+  triggers:
+    - type: pulsar
+      metadata:
+        adminURL: http://pulsar.hda.svc.cluster.local:8080
+        topic: persistent://hda/trabajos/trabajo-creado
+        subscription: trabajo-saga-trabajo-creado-sub
+        msgBacklogThreshold: "10"
+    - type: pulsar
+      metadata:
+        adminURL: http://pulsar.hda.svc.cluster.local:8080
+        topic: persistent://hda/proveedor/proveedor-reservado
+        subscription: trabajo-saga-proveedor-reservado-sub
+        msgBacklogThreshold: "10"
+    - type: pulsar
+      metadata:
+        adminURL: http://pulsar.hda.svc.cluster.local:8080
+        topic: persistent://hda/proveedor/proveedor-no-disponible
+        subscription: trabajo-saga-proveedor-no-disponible-sub
+        msgBacklogThreshold: "10"
+    - type: pulsar
+      metadata:
+        adminURL: http://pulsar.hda.svc.cluster.local:8080
+        topic: persistent://hda/trabajos/trabajo-asignado
+        subscription: trabajo-saga-trabajo-asignado-sub
+        msgBacklogThreshold: "10"
+    - type: pulsar
+      metadata:
+        adminURL: http://pulsar.hda.svc.cluster.local:8080
+        topic: persistent://hda/trabajos/trabajo-cancelado
+        subscription: trabajo-saga-trabajo-cancelado-sub
+        msgBacklogThreshold: "10"
+    - type: pulsar
+      metadata:
+        adminURL: http://pulsar.hda.svc.cluster.local:8080
+        topic: persistent://hda/notificaciones/notificacion-enviada
+        subscription: trabajo-saga-notificacion-enviada-sub
         msgBacklogThreshold: "10"

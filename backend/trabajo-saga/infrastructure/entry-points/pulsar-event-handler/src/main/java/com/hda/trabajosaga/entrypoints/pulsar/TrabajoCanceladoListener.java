@@ -24,6 +24,7 @@ public class TrabajoCanceladoListener {
     private final OrquestarSagaTrabajoUseCase useCase;
     private final String topico;
     private final String suscripcion;
+    private final ConsumoEnVueloTracker enVuelo = new ConsumoEnVueloTracker();
     private Consumer<TrabajoCancelado> consumidor;
 
     public TrabajoCanceladoListener(
@@ -45,16 +46,19 @@ public class TrabajoCanceladoListener {
     }
 
     private void procesar(Consumer<TrabajoCancelado> consumer, Message<TrabajoCancelado> mensaje) {
+        enVuelo.iniciar();
         TrabajoCancelado entrada = mensaje.getValue();
         TrabajoCanceladoComando comando = new TrabajoCanceladoComando(UUID.fromString(entrada.getSagaId()));
         useCase.manejarTrabajoCancelado(comando)
                 .doOnSuccess(ignored -> consumer.acknowledgeAsync(mensaje))
                 .doOnError(ignored -> consumer.negativeAcknowledge(mensaje))
+                .doFinally(signal -> enVuelo.finalizar())
                 .subscribe();
     }
 
     @PreDestroy
     void detener() throws PulsarClientException {
+        enVuelo.esperarDrenaje("TrabajoCanceladoListener");
         if (consumidor != null) consumidor.close();
     }
 }

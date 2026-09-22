@@ -1,6 +1,7 @@
 package com.hda.proveedor.model.proveedor.gateways;
 
 import com.hda.proveedor.model.proveedor.Proveedor;
+import com.hda.proveedor.model.seedwork.DomainEvent;
 import reactor.core.publisher.Mono;
 
 import java.util.UUID;
@@ -29,4 +30,13 @@ public interface ProveedorRepository {
      * ver ReservarProveedorUseCase, que resuelve la ambiguedad revisando buscarPorSagaIdReserva).
      */
     Mono<Proveedor> reservarSiDisponible(String categoriaServicio, String ciudad, UUID sagaId);
+
+    /**
+     * Encola un evento en outbox_evento para que OutboxRelay lo publique a Pulsar (patron
+     * Transactional Outbox). Se usa cuando el evento no coincide con una escritura de guardar()
+     * sobre este agregado (ver ReservarProveedorUseCase: la reserva atomica es un UPDATE aparte
+     * y ProveedorNoDisponible no cambia ningun estado) -- igual queda durable antes de intentar
+     * Pulsar, en vez de publicarse directo y arriesgarse a perderse si el proceso cae a mitad.
+     */
+    Mono<Void> encolarEventoPendiente(DomainEvent evento);
 }

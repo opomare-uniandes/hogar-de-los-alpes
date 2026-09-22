@@ -24,3 +24,19 @@ CREATE TABLE IF NOT EXISTS hito_flujo (
     orden           INT NOT NULL,
     completado      BOOLEAN NOT NULL DEFAULT FALSE
 );
+
+-- Outbox transaccional (patron Transactional Outbox): TrabajoRepositoryAdapter inserta aqui
+-- los eventos de dominio en la MISMA transaccion que el agregado, para que guardar el estado
+-- y registrar el evento pendiente sean atomicos. OutboxRelay (modulo application) lee las filas
+-- con publicado_en IS NULL, las envia a Pulsar via PulsarEventPublisherAdapter y las marca.
+CREATE TABLE IF NOT EXISTS outbox_evento (
+    id              UUID PRIMARY KEY,
+    tipo_evento     VARCHAR(100) NOT NULL,
+    payload         TEXT NOT NULL,
+    ocurrido_en     TIMESTAMP NOT NULL,
+    publicado_en    TIMESTAMP NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_outbox_evento_pendiente
+    ON outbox_evento (ocurrido_en)
+    WHERE publicado_en IS NULL;
