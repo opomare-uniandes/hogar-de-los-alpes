@@ -19,50 +19,47 @@ public class ReservarProveedorUseCase {
     }
 
     public Mono<Void> ejecutar(ReservarProveedorCommand comando) {
-        return proveedorRepository.buscarPorSagaIdReserva(comando.sagaId())
-                .flatMap(yaReservado -> publicarReservado(comando, yaReservado))
-                .switchIfEmpty(reservarNuevo(comando));
+        return resolverProveedor(comando)
+                .flatMap(proveedor -> publicarReservado(comando, proveedor).thenReturn(proveedor))
+                .switchIfEmpty(Mono.defer(() -> publicarNoDisponible(comando).then(Mono.empty())))
+                .then();
     }
 
     /**
-     * Intenta la reserva atomica primero (ver ProveedorRepository.reservarSiDisponible - resuelve
-     * la carrera de lectura-decision-escritura entre ejecuciones concurrentes del mismo comando).
-     * Si no hay fila (Mono vacio), la ambiguedad se resuelve en resolverSinReservaPropia: puede
-     * ser que genuinamente no haya proveedor, o que OTRA ejecucion concurrente de este mismo
-     * comando (mismo sagaId) haya ganado la carrera un instante antes - buscarPorSagaIdReserva
-     * distingue los dos casos.
+     * Resuelve QUE proveedor quedo reservado para este comando (o vacio si ninguno), sin publicar
+     * todavia. Separar la decision de la publicacion es intencional: publicarReservado y
+     * publicarNoDisponible devuelven un Mono&lt;Void&gt; que completa vacio, asi que encadenar
+     * switchIfEmpty directamente sobre ellos hacia que cada paso ya publicado pareciera vacio y
+     * volviera a disparar la rama de respaldo. Una sola ejecucion del comando terminaba encolando
+     * varios eventos, incluido un ProveedorNoDisponible espurio que contradecia una reserva real
+     * (verificado: una reserva exitosa encolaba 4 eventos en vez de 1). Con la decision separada,
+     * el switchIfEmpty de ejecutar() solo se activa cuando de verdad no hubo proveedor.
+     *
+     * El orden refleja la desambiguacion de idempotencia del paso 9:
+     * 1. buscarPorSagaIdReserva reutiliza la reserva si este sagaId ya la hizo (redelivery).
+     * 2. reservarSiDisponible intenta el UPDATE atomico (WHERE disponible = TRUE ... RETURNING).
+     * 3. si aun asi no hay fila, un unico reintento corto acota la ventana en la que otra
+     *    ejecucion concurrente del mismo comando pudo ganar la carrera un instante antes sin que
+     *    su escritura fuera visible todavia; publicar NO-DISPONIBLE por error es mas grave que la
+     *    comprobacion extra, porque contradice una reserva real y trabajo-saga-service podria
+     *    quedarse con esa version incorrecta de los hechos.
      */
-    private Mono<Void> reservarNuevo(ReservarProveedorCommand comando) {
-        return proveedorRepository.reservarSiDisponible(comando.categoriaServicio(), comando.ciudad(), comando.sagaId())
-                .flatMap(proveedor -> publicarReservado(comando, proveedor))
-                .switchIfEmpty(resolverSinReservaPropia(comando));
+    private Mono<Proveedor> resolverProveedor(ReservarProveedorCommand comando) {
+        return proveedorRepository.buscarPorSagaIdReserva(comando.sagaId())
+                .switchIfEmpty(Mono.defer(() -> proveedorRepository.reservarSiDisponible(
+                        comando.categoriaServicio(), comando.ciudad(), comando.sagaId())))
+                .switchIfEmpty(Mono.defer(() -> Mono.delay(Duration.ofMillis(300))
+                        .then(proveedorRepository.buscarPorSagaIdReserva(comando.sagaId()))));
     }
 
     /**
-     * Si la reserva atomica no encontro fila, puede ser que genuinamente no haya proveedor, o
-     * que otra ejecucion concurrente de este MISMO comando la haya ganado un instante antes y
-     * su escritura todavia no sea visible para esta lectura (ver hallazgo del paso 9: bajo
-     * ejecuciones casi simultaneas del mismo comando se observo una ventana de milisegundos
-     * donde esta lectura podia no ver todavia la reserva ya comprometida). Un solo reintento
-     * corto acota esa ventana antes de concluir "no disponible" - publicar NO-DISPONIBLE por
-     * error aqui es mas grave que una comprobacion extra, porque contradice una reserva real
-     * y trabajo-saga-service podria quedarse con esa version incorrecta de los hechos.
+     * Encola el evento en outbox_evento (no eventPublisher directo): se persiste antes de intentar
+     * Pulsar. No hay un guardar() de agregado con el que compartir transaccion aqui, porque la
+     * reserva atomica es reservarSiDisponible, un UPDATE aparte, pero el INSERT en outbox_evento es
+     * en si mismo una escritura atomica y ya no se pierde el evento si el proceso cae entre
+     * construirlo y publicarlo.
      */
-    private Mono<Void> resolverSinReservaPropia(ReservarProveedorCommand comando) {
-        return proveedorRepository.buscarPorSagaIdReserva(comando.sagaId())
-                .flatMap(proveedor -> publicarReservado(comando, proveedor))
-                .switchIfEmpty(Mono.delay(Duration.ofMillis(300)).then(
-                        proveedorRepository.buscarPorSagaIdReserva(comando.sagaId())
-                                .flatMap(proveedor -> publicarReservado(comando, proveedor))
-                                .switchIfEmpty(publicarNoDisponible(comando))));
-    }
-
     private Mono<Void> publicarReservado(ReservarProveedorCommand comando, Proveedor proveedor) {
-        // encolarEventoPendiente (no eventPublisher directo): el evento se persiste en outbox
-        // antes de intentar Pulsar. No hay un guardar() de agregado con el que compartir
-        // transaccion aqui (la reserva atomica es reservarSiDisponible, un UPDATE aparte), pero
-        // el INSERT en outbox_evento es en si mismo una escritura atomica -- ya no se pierde el
-        // evento si el proceso cae entre construirlo y publicarlo.
         return proveedorRepository.encolarEventoPendiente(new ProveedorReservadoDomainEvent(
                 UUID.randomUUID(), comando.sagaId(), comando.trabajoId(),
                 proveedor.getId(), proveedor.getNombre(), Instant.now()));
