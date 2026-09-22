@@ -26,3 +26,6 @@ data:
   USUARIOS_SERVICE_BASE_URL: "http://usuarios-service:8084"
   TRABAJOS_SERVICE_BASE_URL: "http://trabajos-service:8081"
   TRABAJO_SAGA_SERVICE_BASE_URL: "http://trabajo-saga-service:8086"
+  OTEL_COLLECTOR_HOST: "__OTEL_COLLECTOR_HOST__"
+  OTEL_TRACING_SAMPLING: "1.0"
+  SERVICE_ENV: "cloud"

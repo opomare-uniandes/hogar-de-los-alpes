@@ -18,6 +18,8 @@ CLUSTER_NAME=$(terraform -chdir="$TF_DIR" output -raw eks_cluster_name)
 RDS_ENDPOINT=$(terraform -chdir="$TF_DIR" output -raw rds_endpoint)
 REDIS_ENDPOINT=$(terraform -chdir="$TF_DIR" output -raw redis_endpoint)
 POSTGRES_PASSWORD=$(terraform -chdir="$TF_DIR" output -raw rds_master_password)
+OTEL_COLLECTOR_HOST=$(terraform -chdir="$TF_DIR" output -raw otel_collector_host)
+OTEL_EXPORTER_OTLP_HEADERS_AUTHORIZATION=$(terraform -chdir="$TF_DIR" output -raw otel_exporter_otlp_headers_authorization)
 
 ECR_JSON=$(terraform -chdir="$TF_DIR" output -json ecr_repository_urls)
 TRABAJOS_IMAGE="$(echo "$ECR_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["trabajos-service"] + ":latest")')"
@@ -38,6 +40,7 @@ cp -r "$SCRIPT_DIR"/base "$SCRIPT_DIR"/apps "$SCRIPT_DIR"/autoscaling "$RENDER_D
 
 # Python evita las diferencias entre GNU sed y BSD sed (macOS).
 export RENDER_DIR RDS_ENDPOINT REDIS_ENDPOINT POSTGRES_PASSWORD
+export OTEL_COLLECTOR_HOST OTEL_EXPORTER_OTLP_HEADERS_AUTHORIZATION
 export TRABAJOS_IMAGE INTEGRACION_IMAGE NOTIFICACIONES_IMAGE USUARIOS_IMAGE
 export PROVEEDOR_IMAGE TRABAJO_SAGA_IMAGE BFF_IMAGE
 python3 - <<'PY'
@@ -48,6 +51,8 @@ replacements = {
     "__RDS_ENDPOINT__": os.environ["RDS_ENDPOINT"],
     "__REDIS_ENDPOINT__": os.environ["REDIS_ENDPOINT"],
     "__POSTGRES_PASSWORD__": os.environ["POSTGRES_PASSWORD"],
+    "__OTEL_COLLECTOR_HOST__": os.environ["OTEL_COLLECTOR_HOST"],
+    "__OTEL_EXPORTER_OTLP_HEADERS_AUTHORIZATION__": os.environ["OTEL_EXPORTER_OTLP_HEADERS_AUTHORIZATION"],
     "__TRABAJOS_IMAGE__": os.environ["TRABAJOS_IMAGE"],
     "__INTEGRACION_IMAGE__": os.environ["INTEGRACION_IMAGE"],
     "__NOTIFICACIONES_IMAGE__": os.environ["NOTIFICACIONES_IMAGE"],

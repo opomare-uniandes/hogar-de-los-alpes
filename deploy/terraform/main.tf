@@ -119,6 +119,7 @@ module "addons" {
   iam_permissions_boundary_arn = var.iam_permissions_boundary_arn
   lbc_chart_version            = var.lbc_chart_version
   keda_chart_version           = var.keda_chart_version
+  metrics_server_chart_version = var.metrics_server_chart_version
 
   tags = local.common_tags
 }

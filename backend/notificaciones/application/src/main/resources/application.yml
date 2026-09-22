@@ -8,7 +8,8 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-
+  reactor:
+    context-propagation: auto
 hda:
   pulsar:
     service-url: ${PULSAR_SERVICE_URL:pulsar://localhost:6650}
@@ -37,44 +38,47 @@ management:
   endpoints:
     web:
       exposure:
-        include: "health, metrics"
-
+    include: "health, metrics"
   endpoint:
     health:
       probes:
         enabled: false
       show-details: "always"
-
-  observations:
-    annotations:
-      enabled: true
-
-  otlp:
-    metrics:
-      export:
-        enabled: "${OTEL_COLLECTOR_ENABLED:false}"
-        url: "${OTEL_COLLECTOR_HOST:http://localhost:4018}/v1/metrics"
-        step: "${OTEL_COLLECTOR_STEP:1m}"
-        headers:
-          Authorization: "Basic "
   metrics:
     enable:
       all: "${METRICS_ENABLE_ALL:true}"
-
-  opentelemetry:
-    tracing:
-      export:
-        otlp:
-          endpoint: "${OTEL_COLLECTOR_HOST:http://localhost:4018}/v1/traces"
-          compression: "gzip"
-          headers:
-            Authorization: "Basic "
-
-    resource-attributes:
-      service.name: "${SERVICE_NAME:notificaciones}"
-
   tracing:
-    export:
-      enabled: "${OTEL_TRACING_ENABLED:false}"
     sampling:
       probability: "${OTEL_TRACING_SAMPLING:1.0}"
+arconia:
+  otel:
+    exporter:
+      type: otlp
+    metrics:
+      enabled: true
+      exporter:
+        interval: 60s
+        otlp:
+          endpoint: "${OTEL_COLLECTOR_HOST:http://localhost:4018}/v1/metrics"
+          headers:
+            Authorization: "${OTEL_EXPORTER_OTLP_HEADERS_AUTHORIZATION:Basic }"
+    traces:
+      enabled: true
+      sampling:
+        strategy: parent-based-trace-id-ratio
+      exporter:
+        otlp:
+          endpoint: "${OTEL_COLLECTOR_HOST:http://localhost:4018}/v1/traces"
+          headers:
+            Authorization: "${OTEL_EXPORTER_OTLP_HEADERS_AUTHORIZATION:Basic }"
+    logs:
+      enabled: true
+      exporter:
+        otlp:
+          endpoint: "${OTEL_COLLECTOR_HOST:http://localhost:4018}/v1/logs"
+          headers:
+            Authorization: "${OTEL_EXPORTER_OTLP_HEADERS_AUTHORIZATION:Basic }"
+    resource:
+      attributes:
+        deployment.environment.name: "${SERVICE_ENV:local}"
+        service.name: "${SERVICE_NAME:notificaciones}"
