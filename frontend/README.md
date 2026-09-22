@@ -1,14 +1,14 @@
 # Portal web — Hogar de los Alpes
 
-Interfaz React + TypeScript para crear y consultar trabajos a través de
-`trabajos-service`. El portal mantiene separados el comando de creación y la consulta,
+Interfaz React + TypeScript para crear y consultar trabajos a través del
+`bff-service`, el único punto de entrada público. El portal mantiene separados el comando de creación y la consulta,
 en línea con CQS, y explica al usuario el flujo asincrónico sin afirmar que los procesos
 posteriores ya terminaron.
 
 ## Requisitos
 
 - Node.js 20.19 o superior.
-- `trabajos-service` disponible en `http://localhost:8081`.
+- `bff-service` disponible en `http://localhost:8090` (Docker Compose) o en `http://localhost:8080` (ejecución directa).
 
 ## Ejecución local
 
@@ -18,7 +18,7 @@ npm run dev
 ```
 
 Abrir `http://localhost:5173`. En desarrollo, Vite redirige las peticiones de `/api`
-a `http://localhost:8081`, por lo que no es necesario habilitar CORS en Spring Boot.
+a `http://localhost:8090`, por lo que no es necesario habilitar CORS en Spring Boot.
 
 ## Comandos
 

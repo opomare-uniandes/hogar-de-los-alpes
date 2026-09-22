@@ -2,6 +2,9 @@ rootProject.name = 'hogar-de-los-alpes'
 
 include 'eventos-shared'
 
+include ':bff-application'
+project(':bff-application').projectDir = file('bff/application')
+
 include ':trabajos-application'
 project(':trabajos-application').projectDir = file('trabajos/application')
 

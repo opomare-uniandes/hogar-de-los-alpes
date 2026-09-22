@@ -1,171 +1,108 @@
-# Kubernetes en AWS (EKS)
+# Despliegue alternativo en AWS EKS
 
-Despliega los 6 servicios sobre la infraestructura AWS creada por
-[`../terraform/`](../terraform/) (EKS, RDS, ElastiCache, ECR) con autoescalado por backlog de
-Pulsar (KEDA) para los consumidores y por CPU (HPA + metrics-server) para los servicios de
-entrada, mas un ALB real (Gateway API) para acceso externo. Para desarrollo local sin AWS,
-ver [`../k8s/README.md`](../k8s/README.md) — esta carpeta es un flujo separado, no reemplaza
-al local.
+Esta opción despliega los seis servicios de negocio y el BFF sobre la infraestructura de
+[`../terraform/`](../terraform/): EKS, RDS, ElastiCache y ECR. Pulsar corre dentro del
+clúster. KEDA escala consumidores por backlog; HPA y metrics-server escalan servicios
+de entrada por CPU. Un ALB mediante Gateway API publica **solo el BFF**; los servicios
+de negocio permanecen como `ClusterIP`.
 
-## Contenido
+La entrega académica verificada usa [GitHub Codespaces](../codespaces/README.md), no AWS.
+Esta ruta requiere una cuenta AWS y puede generar costos. Para Kubernetes local sin AWS,
+consulte [`../k8s/README.md`](../k8s/README.md).
 
+## Topología
+
+```text
+Internet -> ALB/Gateway -> bff-service (2 réplicas)
+                             |-> trabajos-service -> RDS/hda_trabajos
+                             `-> trabajo-saga-service -> RDS/hda_trabajo_saga
+
+Pulsar -> integracion-service
+       -> notificaciones-service -> usuarios-service -> RDS/hda_usuarios
+       -> proveedor-service -> RDS/hda_proveedor
+       -> trabajo-saga-service
 ```
-k8s-cloud/
-├── apply.sh                      Renderiza los __PLACEHOLDER__ con outputs de Terraform y aplica todo
-├── base/
-│   ├── 00-namespace-config.yaml    Namespace hda + ConfigMap hda-endpoints (RDS/Redis/Pulsar/OTel)
-│   ├── 01-secrets.yaml             Secret postgres-credentials + otel-credentials
-│   ├── 02-storageclass.yaml        StorageClass gp3 (para el volumen de Pulsar)
-│   ├── 03-postgres-bootstrap.yaml  Jobs: crean hda_usuarios/hda_proveedor/hda_trabajo_saga en RDS
-│   └── 04-pulsar.yaml              Pulsar standalone + PVC gp3 + Job que crea tenant/namespaces
-├── apps/                          Los 6 servicios (imagenes de ECR)
-│   ├── 20-trabajos-service.yaml
-│   ├── 21-integracion-service.yaml
-│   ├── 22-notificaciones-service.yaml
-│   ├── 23-usuarios-service.yaml
-│   ├── 24-gateway.yaml             GatewayClass/Gateway/HTTPRoute (ALB, no Ingress)
-│   ├── 25-proveedor-service.yaml
-│   └── 26-trabajo-saga-service.yaml
-└── autoscaling/
-    ├── 30-scaledobjects.yaml       KEDA ScaledObjects (integracion + notificaciones + proveedor + trabajos + trabajo-saga, por backlog)
-    └── 31-hpa-entry-api.yaml       HPA por CPU (usuarios, el unico servicio de entrada que no consume Pulsar; requiere metrics-server, instalado por Terraform)
-```
+
+`base/` define el namespace, ConfigMap, secretos, bases auxiliares y Pulsar. `apps/`
+contiene los siete Deployments y el Gateway. `autoscaling/` configura KEDA y HPA.
+`apply.sh` renderiza los marcadores `__PLACEHOLDER__` con outputs de Terraform en un
+directorio temporal antes de aplicar los manifiestos.
 
 ## Requisitos
 
-AWS CLI, kubectl, Terraform, Docker, Python 3 (usado por `apply.sh` para leer el output JSON
-de ECR).
+- AWS CLI con sesión válida, Terraform, kubectl, Docker y Python 3.
+- Permisos para EKS, ECR, RDS, ElastiCache, VPC, IAM y ALB.
+- Un perfil AWS definido en `deploy/terraform/sandbox.auto.tfvars` (archivo ignorado).
 
 ```bash
 aws sso login --profile <your-aws-profile>
-```
-
-El exporter de telemetria (metricas + trazas hacia tu backend OTLP, p. ej. Grafana Cloud)
-necesita el header de autorizacion. Es un secreto: ponlo en el `sandbox.auto.tfvars`
-(gitignored), nunca en un archivo versionado. Copia la plantilla y completa el valor:
-
-```bash
 cp deploy/terraform/sandbox.auto.tfvars.example deploy/terraform/sandbox.auto.tfvars
-# edita sandbox.auto.tfvars y pon otel_exporter_otlp_headers_authorization = "Basic <...>"
 ```
 
-El host (`otel_collector_host`) tiene un default no-secreto en `variables.tf`; solo hay que
-sobreescribirlo si no usas grafana.net us-east-3.
+El exporter OTLP de métricas y trazas necesita el header de autorización. Configure
+`otel_exporter_otlp_headers_authorization` en `sandbox.auto.tfvars`; nunca suba el valor
+al repositorio. `otel_collector_host` tiene un valor predeterminado no secreto que puede
+cambiarse allí.
 
-## Paso 0: aplicar la infraestructura
+## 1. Crear o actualizar infraestructura
 
-**Sin esto, todo lo demas falla.** [`../terraform/`](../terraform/) crea la VPC, EKS, RDS,
-ElastiCache, ECR y los addons (KEDA + AWS Load Balancer Controller) — nada de esto se aplica
-solo, y `apply.sh` (paso 2) depende de sus outputs.
+Terraform crea la VPC, EKS, RDS, ElastiCache, siete repositorios ECR y los addons
+necesarios (KEDA, metrics-server y AWS Load Balancer Controller). No se ejecuta
+automáticamente al aplicar Kubernetes.
 
 ```bash
 terraform -chdir=deploy/terraform init
+terraform -chdir=deploy/terraform plan
 terraform -chdir=deploy/terraform apply
 ```
 
-Un solo comando: todos los modulos estan wireados en `main.tf`. Tarda ~20-25 min (EKS es lo
-que mas tarda).
-
-## Paso 1: imagenes en ECR
-
-Una vez por cambio de codigo. Primero, build local:
+## 2. Construir y publicar las siete imágenes
 
 ```bash
-docker build -t hda/trabajos-service:local       --build-arg SERVICE=trabajos       -f deploy/docker-compose/Dockerfile backend
-docker build -t hda/integracion-service:local    --build-arg SERVICE=integracion    -f deploy/docker-compose/Dockerfile backend
-docker build -t hda/notificaciones-service:local --build-arg SERVICE=notificaciones -f deploy/docker-compose/Dockerfile backend
-docker build -t hda/usuarios-service:local       --build-arg SERVICE=usuarios       -f deploy/docker-compose/Dockerfile backend
-docker build -t hda/proveedor-service:local      --build-arg SERVICE=proveedor      -f deploy/docker-compose/Dockerfile backend
-docker build -t hda/trabajo-saga-service:local   --build-arg SERVICE=trabajo-saga   -f deploy/docker-compose/Dockerfile backend
+chmod +x deploy/k8s-cloud/build-and-push.sh deploy/k8s-cloud/apply.sh
+./deploy/k8s-cloud/build-and-push.sh
 ```
 
-Despues, tag + push a ECR:
+El script obtiene región, perfil y direcciones ECR desde los outputs de Terraform.
 
-```bash
-aws ecr get-login-password --region us-east-1 --profile <your-aws-profile> \
-  | docker login --username AWS --password-stdin <account-id>.dkr.ecr.us-east-1.amazonaws.com
-
-docker tag hda/trabajos-service:local       <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/trabajos-service:latest
-docker tag hda/integracion-service:local    <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/integracion-service:latest
-docker tag hda/notificaciones-service:local <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/notificaciones-service:latest
-docker tag hda/usuarios-service:local       <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/usuarios-service:latest
-docker tag hda/proveedor-service:local      <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/proveedor-service:latest
-docker tag hda/trabajo-saga-service:local   <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/trabajo-saga-service:latest
-
-docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/trabajos-service:latest
-docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/integracion-service:latest
-docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/notificaciones-service:latest
-docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/usuarios-service:latest
-docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/proveedor-service:latest
-docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/hda/trabajo-saga-service:latest
-```
-
-(`<account-id>` sale de `terraform -chdir=../terraform output ecr_repository_urls`.)
-
-## Paso 2: desplegar
+## 3. Desplegar
 
 ```bash
 ./deploy/k8s-cloud/apply.sh
 ```
 
-Esto: apunta `kubectl` al cluster (`aws eks update-kubeconfig`), renderiza los
-`__PLACEHOLDER__` (endpoints de RDS/ElastiCache, password de Postgres, URLs de imagen) desde
-`terraform output`, aplica `base/` → espera a Pulsar → aplica `apps/` → aplica
-`autoscaling/`, y al final imprime la URL del ALB.
+El script configura kubectl, renderiza endpoints y secretos en un directorio temporal,
+crea las bases auxiliares en RDS, espera a Pulsar, despliega los siete servicios,
+aplica el autoescalado y muestra la dirección del ALB.
 
-## Paso 3: actualizar una imagen
-
-Repetir el [Paso 1](#paso-1-imagenes-en-ecr).
-
-Asociar `kubectl` al cluster:
+## 4. Verificar desde el BFF
 
 ```bash
-kubectl config current-context
+kubectl get deployments,pods,services -n hda
+kubectl get gateway,httproute,hpa,scaledobjects -n hda
 
-aws eks update-kubeconfig \
-  --name $(terraform -chdir=deploy/terraform output -raw eks_cluster_name) \
-  --region $(terraform -chdir=deploy/terraform output -raw aws_region) \
-  --profile <your-aws-profile>
-
-kubectl get nodes
+export BFF_URL="http://$(kubectl get gateway hda-gateway -n hda -o jsonpath='{.status.addresses[0].value}')"
+curl "$BFF_URL/actuator/health"
 ```
 
-Forzar un rollout para el servicio que haya cambiado:
+Asigne `BFF_URL` a `baseUrl` en el ambiente Postman y ejecute la colección de
+[`../../docs/postman`](../../docs/postman/README.md). No anuncie una URL hasta que
+el health check y la colección respondan correctamente.
+
+## Actualizar y eliminar
+
+Para actualizar imágenes, ejecute `build-and-push.sh` y reinicie los Deployments:
 
 ```bash
-kubectl rollout restart deployment/trabajos-service -n hda
-kubectl rollout restart deployment/integracion-service -n hda
-kubectl rollout restart deployment/notificaciones-service -n hda
-kubectl rollout restart deployment/usuarios-service -n hda
-kubectl rollout restart deployment/proveedor-service -n hda
-kubectl rollout restart deployment/trabajo-saga-service -n hda
+./deploy/k8s-cloud/build-and-push.sh
+kubectl rollout restart deployment -n hda
+kubectl rollout status deployment/bff-service -n hda
 ```
 
-Eso recrea los Pods; `imagePullPolicy: Always` hace que el Kubelet vuelva a pedir `:latest`
-a ECR en ese momento (ahi si trae la version nueva). Verificar con:
+Al eliminar, quite primero el Gateway: el ALB está fuera del estado de Terraform y
+podría quedar huérfano con cargos asociados.
 
 ```bash
-kubectl rollout status deployment/trabajos-service -n hda
-```
-
-## Verificar
-
-```bash
-kubectl get pods -n hda
-kubectl get scaledobject -n hda
-kubectl get hpa -n hda
-kubectl get gateway hda-gateway -n hda
-```
-
-## Teardown
-
-Borra primero los objetos de Kubernetes que crean recursos AWS fuera de Terraform (el ALB del
-Gateway), luego destruye la infraestructura:
-
-```bash
-kubectl delete -f deploy/k8s-cloud/apps/24-gateway.yaml
+kubectl delete -f deploy/k8s-cloud/apps/27-gateway.yaml
 terraform -chdir=deploy/terraform destroy
 ```
-
-> Si se salta el `kubectl delete` del Gateway, el ALB que creo el AWS Load Balancer Controller
-> queda huerfano en AWS (Terraform no lo conoce, no lo puede destruir) y sigue facturando.

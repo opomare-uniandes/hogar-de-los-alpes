@@ -1,0 +1,36 @@
+# Ajustes de recursos para ejecutar la entrega completa en un Codespace gratuito
+# de 2 cores / 8 GB. Se combina con deploy/docker-compose/docker-compose.yml.
+services:
+  postgres:
+    mem_limit: 512m
+
+  pulsar:
+    mem_limit: 1536m
+    environment:
+      PULSAR_MEM: "-Xms256m -Xmx768m -XX:MaxDirectMemorySize=256m"
+
+  redis:
+    mem_limit: 256m
+
+  trabajos-service: &spring_service
+    mem_limit: 384m
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx256m -XX:+UseSerialGC"
+
+  integracion-service:
+    <<: *spring_service
+
+  notificaciones-service:
+    <<: *spring_service
+
+  usuarios-service:
+    <<: *spring_service
+
+  proveedor-service:
+    <<: *spring_service
+
+  trabajo-saga-service:
+    <<: *spring_service
+
+  bff-service:
+    <<: *spring_service

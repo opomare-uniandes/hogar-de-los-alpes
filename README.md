@@ -7,17 +7,40 @@ hexagonal, con **Spring Boot WebFlux** (reactivo), **Apache Pulsar + Avro** como
 eventos, y **una sola excepción síncrona explícita** (`notificaciones-service →
 usuarios-service` por HTTP, una consulta de solo lectura).
 
-Desde la Entrega 5, el sistema son **6 servicios**: los 4 de la Entrega 4
+Desde la Entrega 5, el sistema tiene **6 servicios de negocio y un BFF**: los 4 de la Entrega 4
 (`trabajos`/`integracion`/`notificaciones`/`usuarios`) más `proveedor-service` y
 `trabajo-saga-service`, que implementan la saga de **orquestación** "Asignación de
 trabajo con proveedor" (ver sección [Saga: "Asignación de trabajo con
-proveedor"](#saga-asignación-de-trabajo-con-proveedor) más abajo).
+proveedor"](#saga-asignación-de-trabajo-con-proveedor) más abajo). `bff-service` es el
+único punto de entrada HTTP público: delega comandos y compone consultas, pero no contiene
+reglas de dominio ni coordina la saga.
+
+## API pública (BFF)
+
+**Despliegue académico verificado:**
+[https://hda-entrega5-bff-5gr56g469x67h45wp-8090.app.github.dev](https://hda-entrega5-bff-5gr56g469x67h45wp-8090.app.github.dev)
+(disponible mientras el Codespace esté encendido; consulte el
+[registro de despliegue](docs/deployment/ENTREGA.md)).
+
+| Operación | Ruta |
+| --- | --- |
+| Salud | `GET /actuator/health` |
+| Crear trabajo | `POST /api/v1/trabajos` |
+| Consultar trabajo | `GET /api/v1/trabajos/{trabajoId}` |
+| Consultar trabajo y saga | `GET /api/v1/trabajos/{trabajoId}/seguimiento` |
+| Consultar Saga Log | `GET /api/v1/sagas/{sagaId}` |
+
+- Contrato OpenAPI: [`docs/api/openapi.yaml`](docs/api/openapi.yaml).
+- Colección Postman: [`docs/postman`](docs/postman/README.md).
+- Despliegue demostrable sin costo: [`deploy/codespaces`](deploy/codespaces/README.md).
+- Despliegue AWS con costo (alternativo): [`deploy/k8s-cloud`](deploy/k8s-cloud/README.md).
+- Registro de evidencia: [`docs/deployment/ENTREGA.md`](docs/deployment/ENTREGA.md).
 
 ## Portal web
 
 El repositorio incluye en `frontend` una aplicación React + TypeScript que permite
 crear trabajos y consultarlos por su identificador. Durante el desarrollo, redirige
-`/api` a `trabajos-service` en el puerto `8081`.
+`/api` al BFF en `http://localhost:8090`.
 
 ```shell
 cd frontend
@@ -40,6 +63,7 @@ graph LR
     WhatsApp(["WhatsApp (simulado)"])
     Tutor(["Tutor / API consumer"])
 
+    BFF["bff-service :8080<br/>API público · WebFlux"]
     Trabajos["trabajos-service :8081<br/>REST · WebFlux"]
     Integracion["integracion-service :8082"]
     Notificaciones["notificaciones-service :8083"]
@@ -60,7 +84,10 @@ graph LR
         EventosSaga{{"eventos resultado<br/>(participantes → trabajo-saga-service)"}}
     end
 
-    Cliente -->|"POST / GET /trabajos"| Trabajos
+    Cliente -->|"/api/v1"| BFF
+    Tutor -->|"/api/v1"| BFF
+    BFF -->|"comando y consulta"| Trabajos
+    BFF -->|"consulta Saga Log"| TrabajoSaga
     Trabajos -->|R2DBC| DBTrabajos
     Trabajos -->|publica| TopicCreado
     TopicCreado -->|"consume (Shared)"| Integracion
@@ -84,21 +111,20 @@ graph LR
     EventosSaga -->|"consume (Shared)"| TrabajoSaga
     Proveedor -->|R2DBC| DBProveedor
     TrabajoSaga -->|R2DBC| DBTrabajoSaga
-    Tutor -->|"GET /sagas/trabajos/{trabajoId}<br/>GET /sagas/{sagaId}"| TrabajoSaga
 
     classDef servicio fill:#cfe8ff,stroke:#4a90d9,color:#000000;
     classDef infra fill:#ffe8b3,stroke:#d9a441,color:#000000;
     classDef topic fill:#d9f2d9,stroke:#4aa64a,color:#000000;
     classDef externo fill:#f0f0f0,stroke:#999999,color:#000000;
 
-    class Trabajos,Integracion,Notificaciones,Usuarios,Proveedor,TrabajoSaga servicio;
+    class BFF,Trabajos,Integracion,Notificaciones,Usuarios,Proveedor,TrabajoSaga servicio;
     class DBTrabajos,DBUsuarios,DBProveedor,DBTrabajoSaga infra;
     class TopicCreado,TopicSiniestro,TopicNotificacion,ComandosSaga,EventosSaga topic;
     class Cliente,Externos,Email,WhatsApp,Tutor externo;
 ```
 
-- Azul: los seis servicios Spring Boot (procesos independientes, cada uno con su propio
-  `main()` - ver `<servicio>/application`, p. ej. `backend/trabajos/application`).
+- Azul: seis servicios de negocio y el BFF como procesos Spring Boot independientes. El
+  BFF es un adaptador de presentación y no un séptimo contexto de dominio.
 - Naranja: Postgres — un solo contenedor, con **una base separada por servicio**
   (`hda_trabajos`, `hda_usuarios`, `hda_proveedor`, `hda_trabajo_saga`; topología de datos
   descentralizada). `integracion-service` y `notificaciones-service` no persisten nada
@@ -110,10 +136,10 @@ graph LR
   `trabajo-saga-service` (ver [Saga: "Asignación de trabajo con
   proveedor"](#saga-asignación-de-trabajo-con-proveedor)).
 - Gris: actores externos al sistema (incluye los canales simulados de notificación).
-  Lo importante del diagrama: **ningún servicio le hace una llamada directa a otro, con
-  una sola excepción explícita** — `notificaciones-service → usuarios-service` por HTTP,
-  y es una *consulta* (no un comando): todo lo demás sigue pasando por los tópicos de
-  Pulsar, que es la regla obligatoria que exige la guía (ver más abajo).
+  Entre servicios de negocio existe **una sola excepción síncrona explícita**:
+  `notificaciones-service → usuarios-service` por HTTP y únicamente para consulta. Las
+  llamadas del BFF a Trabajos y Saga pertenecen al borde de presentación; la colaboración
+  de dominio y la transacción larga siguen pasando por eventos de Pulsar.
 
 Notar el *fan-out* en `trabajo-creado`: `integracion-service` y `notificaciones-service`
 tienen cada uno su propia suscripción `Shared` sobre el mismo tópico — ambos reciben
@@ -125,7 +151,7 @@ por eventos importa (Modificabilidad 1.1). Agregar `usuarios-service` como cuart
 componente siguió la misma lógica: ninguno de los otros tres tuvo que cambiar para que
 existiera (solo `notificaciones-service`, que es quien lo consulta).
 
-## Estructura: arquitectura limpia, 6 servicios
+## Estructura: arquitectura limpia, 6 servicios de negocio + BFF
 
 Cada servicio es su propia carpeta de **primer nivel** dentro de `backend/`
 (`trabajos`/`integracion`/`notificaciones`/`usuarios`/`proveedor`/`trabajo-saga` — el nombre corto, sin el sufijo
@@ -264,31 +290,37 @@ backend/
 │   │                                    ProveedorReservado/NoDisponible/Liberado.
 │   └── application/                     ProveedorServiceApplication + wiring. Puerto 8085.
 │
-└── trabajo-saga/                         Nuevo en Entrega 5. El orquestador — máquina de
-                                          estados explícita de la saga (ver sección dedicada
-                                          más abajo). Paquete base com.hda.trabajosaga.
-    ├── domain/
-    │   ├── model/                       SagaTrabajo (AggregateRoot<UUID> — su id ES el
-    │   │                                sagaId), PasoSaga/PasoSagaTipo/EstadoSaga, y los
-    │   │                                puertos SagaTrabajoRepository/SagaTrabajoEventPublisher.
-    │   └── usecase/                     OrquestarSagaTrabajoUseCase (un método por cada uno
-    │                                    de los 6 eventos que orquesta) y
-    │                                    ConsultarSagaTrabajoUseCase.
-    ├── infrastructure/
-    │   ├── entry-points/
-    │   │   ├── reactive-web/            SagaTrabajoController: GET /sagas/trabajos/{trabajoId}
-    │   │   │                            y GET /sagas/{sagaId}.
-    │   │   └── pulsar-event-handler/    6 listeners (TrabajoCreado, ProveedorReservado,
-    │   │                                ProveedorNoDisponible, TrabajoAsignado,
-    │   │                                TrabajoCancelado, NotificacionEnviada).
-    │   └── driven-adapters/
-    │       ├── r2dbc-postgresql/        Implementa SagaTrabajoRepository (hda_trabajo_saga,
-    │       │                            el Saga Log): upsert atómico de saga_trabajo (INSERT
-    │       │                            ... ON CONFLICT), inserts de saga_paso protegidos por
-    │       │                            UNIQUE(saga_id, paso).
-    │       └── pulsar-event-bus/        Implementa SagaTrabajoEventPublisher: publica los 5
-    │                                    comandos hacia proveedor/trabajos/notificaciones.
-    └── application/                     TrabajoSagaServiceApplication + wiring. Puerto 8086.
+├── trabajo-saga/                         Nuevo en Entrega 5. El orquestador — máquina de
+│                                         estados explícita de la saga (ver sección dedicada
+│                                         más abajo). Paquete base com.hda.trabajosaga.
+│   ├── domain/
+│   │   ├── model/                       SagaTrabajo (AggregateRoot<UUID> — su id ES el
+│   │   │                                sagaId), PasoSaga/PasoSagaTipo/EstadoSaga, y los
+│   │   │                                puertos SagaTrabajoRepository/SagaTrabajoEventPublisher.
+│   │   └── usecase/                     OrquestarSagaTrabajoUseCase (un método por cada uno
+│   │                                    de los 6 eventos que orquesta) y
+│   │                                    ConsultarSagaTrabajoUseCase.
+│   ├── infrastructure/
+│   │   ├── entry-points/
+│   │   │   ├── reactive-web/            SagaTrabajoController: GET /sagas/trabajos/{trabajoId}
+│   │   │   │                            y GET /sagas/{sagaId}.
+│   │   │   └── pulsar-event-handler/    6 listeners (TrabajoCreado, ProveedorReservado,
+│   │   │                                ProveedorNoDisponible, TrabajoAsignado,
+│   │   │                                TrabajoCancelado, NotificacionEnviada).
+│   │   └── driven-adapters/
+│   │       ├── r2dbc-postgresql/        Implementa SagaTrabajoRepository (hda_trabajo_saga,
+│   │       │                            el Saga Log): upsert atómico de saga_trabajo (INSERT
+│   │       │                            ... ON CONFLICT), inserts de saga_paso protegidos por
+│   │       │                            UNIQUE(saga_id, paso).
+│   │       └── pulsar-event-bus/        Implementa SagaTrabajoEventPublisher: publica los 5
+│   │                                    comandos hacia proveedor/trabajos/notificaciones.
+│   └── application/                     TrabajoSagaServiceApplication + wiring. Puerto 8086.
+│
+└── bff/
+    └── application/                     Adaptador de presentación WebFlux. Expone el API
+                                          público, propaga X-Correlation-Id y compone las
+                                          consultas de Trabajo + Saga Log. No contiene
+                                          entidades ni reglas de dominio. Puerto 8080.
 ```
 
 La regla obligatoria de la guía se cumple explícitamente, **con una sola excepción
@@ -300,7 +332,7 @@ consumen cada uno por su lado (fan-out, ver diagrama arriba) y publican
 `trabajo-siniestro-creado`/`notificacion-enviada` respectivamente. `proveedor-service` y
 `trabajo-saga-service` (Entrega 5) siguen el mismo patrón, agregando comandos dirigidos
 (saga → participante) además de eventos — ver [Saga: "Asignación de trabajo con
-proveedor"](#saga-asignación-de-trabajo-con-proveedor). Son seis procesos/servicios Spring
+proveedor"](#saga-asignación-de-trabajo-con-proveedor). Son siete procesos/servicios Spring
 Boot independientes, cada uno con su propio `application/`.
 
 ## Mapeo con las decisiones de diseño
@@ -462,12 +494,8 @@ El proyecto usa **Spring Boot 4.1.1**. Esa versión de su plugin de Gradle exige
 > que decían `backend/docker-compose.yml` / `backend/.env` ahora viven bajo
 > `deploy/docker-compose/` (p. ej. `cd deploy/docker-compose && docker compose up -d`).
 
-> **Directorios.** Todos los comandos de esta sección se ejecutan **desde la raíz del
-> repositorio** (la carpeta que contiene este `README.md`). El `docker-compose.yml`, el
-> `gradlew` y el `.env` viven dentro de `backend/`, así que los comandos apuntan ahí
-> explícitamente (`-f backend/...`, `--env-file backend/.env`, `./backend/gradlew`).
-> Si prefieres, puedes `cd backend` una vez y omitir esos prefijos — al final de cada
-> paso se indica el equivalente "desde `backend/`".
+> **Directorios.** Los comandos se ejecutan desde la raíz del repositorio. Gradle vive en
+> `backend/`; Docker Compose y su `.env` viven en `deploy/docker-compose/`.
 
 0. Credenciales por variables de entorno. Las credenciales de Postgres **no están
    hardcodeadas** en el repositorio: se leen de variables de entorno, tanto en
@@ -498,20 +526,10 @@ El proyecto usa **Spring Boot 4.1.1**. Esa versión de su plugin de Gradle exige
    local). Si arrancas un servicio **fuera** de Docker Compose (con `java -jar`), exporta
    las variables en esa terminal para que las lea la app.
 
-   > **Cada base (`hda_usuarios`, `hda_proveedor`, `hda_trabajo_saga`) solo se crea en un
-   > volumen nuevo de Postgres.** Los scripts en `deploy/docker-compose/postgres-init/`
-   > corren automáticamente la primera vez que se inicializa el volumen `pgdata` (Postgres
-   > solo ejecuta `docker-entrypoint-initdb.d` en un volumen vacío). Si ya tenías el
-   > contenedor de una sesión anterior a que existieran estos servicios, hay que recrear el
-   > volumen una vez para que se aplique:
-   > ```shell
-   > docker compose --env-file deploy/docker-compose/.env -f deploy/docker-compose/docker-compose.yml down -v
-   > docker compose --env-file deploy/docker-compose/.env -f deploy/docker-compose/docker-compose.yml up -d
-   > ```
-   > (`down -v` borra los datos de **ambas** bases en ese volumen - solo son datos de
-   > prueba locales, no hay nada que perder en desarrollo.)
+   > Compose ejecuta `postgres-bootstrap` en cada arranque. El proceso crea únicamente las
+   > bases ausentes y también funciona con volúmenes antiguos; no elimina datos existentes.
 
-1. Infraestructura: levanta Postgres (`5432`), Pulsar (`6650`/`8080`) y Redis (`6379`).
+1. Infraestructura: levanta Postgres (`5432`), Pulsar (`6650`/`8087`) y Redis (`6379`).
    Redis lo usan `integracion-service` y `notificaciones-service` como almacén de
    idempotencia (deduplicación de eventos por su `id`).
 
@@ -519,22 +537,20 @@ El proyecto usa **Spring Boot 4.1.1**. Esa versión de su plugin de Gradle exige
    docker compose --env-file deploy/docker-compose/.env -f deploy/docker-compose/docker-compose.yml up -d
    ```
 
-   > **Importante al ejecutar desde la raíz:** hay que pasar **ambos**
-   > `--env-file backend/.env` **y** `-f backend/docker-compose.yml`. Docker Compose busca
-   > el `.env` en el directorio actual (la raíz), no junto al `docker-compose.yml`; sin
-   > `--env-file` usaría los valores por defecto en vez de los de tu `.env`.
+   > **Importante al ejecutar desde la raíz:** pasa **ambos**
+   > `--env-file deploy/docker-compose/.env` y
+   > `-f deploy/docker-compose/docker-compose.yml`. Sin `--env-file`, Compose usa los
+   > valores predeterminados, adecuados únicamente para desarrollo local.
    >
-   > Equivalente desde `backend/`: `cd backend && docker compose up -d` (ahí Compose lee
-   > `.env` automáticamente).
+   > Equivalente desde el directorio de despliegue:
+   > `cd deploy/docker-compose && docker compose up -d` (allí Compose lee `.env`
+   > automáticamente).
 
-2. Crear el tenant y los namespaces de Pulsar que usan los tópicos de este proyecto:
+2. El contenedor `pulsar-init` crea de forma automática e idempotente el tenant y los
+   namespaces de Pulsar. Para verificarlo:
 
 ```shell
-   docker exec hda-pulsar bin/pulsar-admin tenants create hda
-   docker exec hda-pulsar bin/pulsar-admin namespaces create hda/trabajos
-   docker exec hda-pulsar bin/pulsar-admin namespaces create hda/integracion
-   docker exec hda-pulsar bin/pulsar-admin namespaces create hda/notificaciones
-   docker exec hda-pulsar bin/pulsar-admin namespaces create hda/proveedor
+   docker exec hda-pulsar bin/pulsar-admin namespaces list hda
    ```
 
    (Estos usan `docker exec` sobre el contenedor `hda-pulsar`, así que funcionan igual
@@ -543,12 +559,12 @@ El proyecto usa **Spring Boot 4.1.1**. Esa versión de su plugin de Gradle exige
    correspondiente — ver [Saga: "Asignación de trabajo con
    proveedor"](#saga-asignación-de-trabajo-con-proveedor).)
 
-3. Compilar los seis servicios. Cada uno es su propio módulo Gradle bootable (con su
+3. Compilar los siete servicios. Cada uno es su propio módulo Gradle bootable (con su
    propio classpath y su propio `build/libs/`), así que se pueden compilar juntos o por
    separado sin que uno afecte al otro:
 
 ```shell
-./backend/gradlew -p backend :trabajos-application:bootJar :integracion-application:bootJar :notificaciones-application:bootJar :usuarios-application:bootJar :proveedor-application:bootJar :trabajo-saga-application:bootJar
+./backend/gradlew -p backend :trabajos-application:bootJar :integracion-application:bootJar :notificaciones-application:bootJar :usuarios-application:bootJar :proveedor-application:bootJar :trabajo-saga-application:bootJar :bff-application:bootJar
 ```
 
    (o compilar todo el proyecto de una vez: `./backend/gradlew -p backend build`.)
