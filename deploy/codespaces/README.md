@@ -40,6 +40,25 @@ el Codespace se detiene. No representa un despliegue productivo de alta disponib
 Si GitHub mantiene el puerto privado, abra la pestaña **Ports**, haga clic derecho
 sobre `8090`, seleccione **Port Visibility > Public** y vuelva a copiar la URL.
 
+## Repetir la demostración con datos limpios
+
+El proveedor semilla de `plomeria` en `Bogota` queda reservado tras una saga exitosa.
+Para volver a ejecutar el camino exitoso en este Codespace, reinicialice **solo** los
+datos de prueba del proyecto Compose `hda-codespaces` y levántelo de nuevo:
+
+```bash
+docker compose --project-name hda-codespaces --env-file deploy/docker-compose/.env \
+  -f deploy/docker-compose/docker-compose.yml \
+  -f deploy/codespaces/docker-compose.codespaces.yml down -v
+./deploy/codespaces/start.sh
+```
+
+`down -v` elimina los volúmenes `hda-codespaces_pgdata` y
+`hda-codespaces_redisdata` (datos de prueba sin recuperación); no elimina código ni
+afecta otros proyectos Docker. No ejecute este paso si necesita conservar esos datos.
+Al reiniciar el Codespace, confirme de nuevo que el puerto `8090` esté marcado **Public**
+en la pestaña **Ports** y que `/actuator/health` responda `UP` desde la URL pública.
+
 ## Detener el consumo
 
 ```bash

@@ -25,7 +25,8 @@ Health:   https://hda-entrega5-bff-5gr56g469x67h45wp-8090.app.github.dev/actuato
 ```
 
 La URL fue verificada el **21 de septiembre de 2026** mediante `curl` y Newman:
-`8` solicitudes, `14` aserciones y `0` fallos. El camino exitoso dejó el trabajo
+`8` solicitudes de la colección más `3` sondeos de seguimiento, `14` aserciones y
+`0` fallos. Las aserciones esperan estados terminales: el camino exitoso dejó el trabajo
 `ASIGNADO` y registró los tres pasos de la saga; el camino alterno terminó
 `CANCELADA` con la compensación `COMPENSAR_CANCELAR_TRABAJO=OK`.
 
@@ -33,6 +34,9 @@ La URL fue verificada el **21 de septiembre de 2026** mediante `curl` y Newman:
 > `hda-entrega5-bff-5gr56g469x67h45wp` permanezca encendido. Si GitHub lo detuvo por
 > inactividad, inícielo nuevamente antes de la evaluación; la URL se conserva mientras
 > exista el mismo Codespace.
+> El proveedor de Bogotá queda reservado después de una saga exitosa. Para repetir la
+> colección, reinicialice solamente los datos de prueba de `hda-codespaces` siguiendo
+> [la guía de Codespaces](../../deploy/codespaces/README.md).
 
 ## Lista de evidencia para el video
 

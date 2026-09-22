@@ -19,9 +19,17 @@ los seis servicios de negocio.
 - **Camino compensado:** `plomeria` en `Medellin` no tiene proveedor semilla. El estado
   terminal esperado es `CANCELADA` y el trabajo termina `CANCELADO`.
 
-La comunicación de la saga es asíncrona. Si la primera consulta devuelve
-`SAGA_PENDIENTE` o un estado intermedio, espere entre 3 y 5 segundos y repita únicamente
-la petición de seguimiento. Esto no representa un error: demuestra consistencia eventual.
+La comunicación de la saga es asíncrona. Al ejecutar la colección completa, las peticiones
+de seguimiento consultan de nuevo hasta alcanzar un estado terminal (máximo 12 intentos)
+y verifican tanto el estado de la saga como el del trabajo. Un estado intermedio no se
+cuenta como éxito. Al enviar una petición individual en Postman, espere y repita la
+consulta de seguimiento manualmente.
+
+El proveedor semilla de `plomeria` en `Bogota` queda reservado después de la primera
+saga exitosa. Por eso la colección completa está diseñada para ejecutarse sobre datos
+de demostración limpios. Si ya ejecutó el caso exitoso, siga la reinicialización
+acotada del entorno de prueba indicada en [`../../deploy/codespaces/README.md`](../../deploy/codespaces/README.md)
+antes de repetirlo; de lo contrario, el camino exitoso fallará correctamente.
 
 ## Ejecución por línea de comandos
 

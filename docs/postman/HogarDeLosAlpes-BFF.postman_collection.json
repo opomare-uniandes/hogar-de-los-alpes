@@ -68,8 +68,22 @@
             "pm.test('Seguimiento disponible', () => pm.response.to.have.status(200));",
             "const body = pm.response.json();",
             "pm.expect(body.trabajo.id).to.eql(pm.environment.get('trabajoIdExitoso'));",
-            "if (body.saga) { pm.environment.set('sagaIdExitoso', body.saga.sagaId); }",
-            "pm.test('Saga completada o todavía en proceso', () => pm.expect(body.estadoSeguimiento).to.be.oneOf(['SAGA_PENDIENTE','INICIADA','PROVEEDOR_RESERVADO','ASIGNADA','COMPLETADA']));"
+            "const url = pm.environment.get('baseUrl') + '/api/v1/trabajos/' + pm.environment.get('trabajoIdExitoso') + '/seguimiento';",
+            "function confirmar(intentos, actual) {",
+            "  if (actual.estadoSeguimiento === 'COMPLETADA' || actual.estadoSeguimiento === 'CANCELADA' || intentos >= 12) {",
+            "    pm.test('Saga exitosa termina COMPLETADA y trabajo ASIGNADO', () => {",
+            "      pm.expect(actual.estadoSeguimiento).to.eql('COMPLETADA');",
+            "      pm.expect(actual.trabajo.estado).to.eql('ASIGNADO');",
+            "    });",
+            "    if (actual.saga) { pm.environment.set('sagaIdExitoso', actual.saga.sagaId); }",
+            "    return;",
+            "  }",
+            "  setTimeout(() => pm.sendRequest(url, (error, respuesta) => {",
+            "    if (error) { pm.test('Consulta de saga disponible', () => { throw error; }); return; }",
+            "    confirmar(intentos + 1, respuesta.json());",
+            "  }), 1500);",
+            "}",
+            "confirmar(1, body);"
           ], "type": "text/javascript"}}]
         }
       ]
@@ -97,8 +111,22 @@
           "event": [{"listen": "test", "script": {"exec": [
             "pm.test('Seguimiento disponible', () => pm.response.to.have.status(200));",
             "const body = pm.response.json();",
-            "if (body.saga) { pm.environment.set('sagaIdCompensado', body.saga.sagaId); }",
-            "pm.test('Compensación visible o todavía procesándose', () => pm.expect(body.estadoSeguimiento).to.be.oneOf(['SAGA_PENDIENTE','INICIADA','COMPENSANDO','CANCELADA']));"
+            "const url = pm.environment.get('baseUrl') + '/api/v1/trabajos/' + pm.environment.get('trabajoIdCompensado') + '/seguimiento';",
+            "function confirmar(intentos, actual) {",
+            "  if (actual.estadoSeguimiento === 'COMPLETADA' || actual.estadoSeguimiento === 'CANCELADA' || intentos >= 12) {",
+            "    pm.test('Compensación termina CANCELADA y trabajo CANCELADO', () => {",
+            "      pm.expect(actual.estadoSeguimiento).to.eql('CANCELADA');",
+            "      pm.expect(actual.trabajo.estado).to.eql('CANCELADO');",
+            "    });",
+            "    if (actual.saga) { pm.environment.set('sagaIdCompensado', actual.saga.sagaId); }",
+            "    return;",
+            "  }",
+            "  setTimeout(() => pm.sendRequest(url, (error, respuesta) => {",
+            "    if (error) { pm.test('Consulta de compensación disponible', () => { throw error; }); return; }",
+            "    confirmar(intentos + 1, respuesta.json());",
+            "  }), 1500);",
+            "}",
+            "confirmar(1, body);"
           ], "type": "text/javascript"}}]
         }
       ]
