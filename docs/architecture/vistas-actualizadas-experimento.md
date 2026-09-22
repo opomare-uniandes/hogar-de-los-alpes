@@ -60,8 +60,8 @@ flowchart LR
         Identidad["Identidad y acceso (OIDC) / BFFs / API Gateway"]
     end
 
-    PV1 -->|"solicitud-trabajo-seguros-los-alpes (v1)"| Integracion
-    PV2 -->|"solicitud-trabajo-partner-b (v2)"| Integracion
+    PV1 -->|"solicitud-trabajo-v1"| Integracion
+    PV2 -->|"solicitud-trabajo-v2"| Integracion
     Integracion -->|"CrearTrabajoCommand"| Trabajos
     Cliente -->|"POST /trabajos"| Trabajos
     Trabajos -->|"TrabajoCreado"| Saga
@@ -189,8 +189,8 @@ flowchart LR
     Redis[("Redis · idempotencia")]
 
     subgraph Pulsar["Apache Pulsar (bus único)"]
-        TopicV1{{"solicitud-trabajo-seguros-los-alpes"}}
-        TopicV2{{"solicitud-trabajo-partner-b"}}
+        TopicV1{{"solicitud-trabajo-v1"}}
+        TopicV2{{"solicitud-trabajo-v2"}}
         TopicRechazo{{"SolicitudTrabajoRechazadaV1"}}
         TopicCreado{{"trabajo-creado"}}
         TopicSiniestro{{"trabajo-siniestro-creado"}}
@@ -252,16 +252,3 @@ flowchart LR
   estaba anticipado como punto de sensibilidad en la Entrega 2.
 - Persistencia por servicio se confirma (`hda_trabajos`, `hda_usuarios`, `hda_proveedor`,
   `hda_trabajo_saga`); `integracion` y `notificaciones` no tienen base propia, solo Redis.
-
-## 4. Próximos pasos sugeridos
-
-1. Extender el experimento a al menos una capacidad hoy "pendiente" (por ejemplo, Catálogo de
-   servicios o Acreditación de proveedores) para empezar a validar esa mitad de la Entrega 2
-   que el experimento actual no toca.
-2. Documentar como punto de sensibilidad nuevo la concurrencia sobre `Proveedor` (recurso
-   compartido y contendido), que no estaba en la tabla S1–S9 original.
-3. Decidir si el patrón de `integracion-service` (ACL genérico + mapper versionado) reemplaza
-   formalmente al patrón "un adaptador por partner" (M4/ADP) en el resto de integraciones
-   B2B2C, o si conviven ambos según el volumen de cada partner.
-4. Cerrar el outbox transaccional pendiente que el propio experimento señala como límite
-   conocido (entrega atómica entre persistencia y publicación en `integracion-service`).

@@ -42,6 +42,12 @@ hda:
     partner:
       enabled: false
       partner-id: ${PARTNER_ID:11111111-1111-1111-1111-111111111111}
+      # Generador de carga del escenario 4 (solo activo con HDA_DEMO_PARTNER_ENABLED=true).
+      # count: cuantas solicitudes publicar en el topico de ESTE partner (default 1 = demo simple).
+      # rate-per-second: si es mayor que 0, espacia los envios a esa tasa aprox. para generar
+      # backlog gradual; 0 = burst lo mas rapido posible.
+      count: ${HDA_DEMO_PARTNER_COUNT:1}
+      rate-per-second: ${HDA_DEMO_PARTNER_RATE:0}
   idempotencia:
     ttl: PT24H
 
