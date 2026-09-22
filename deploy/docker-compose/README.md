@@ -1,98 +1,57 @@
-# Docker Compose — entorno local rapido
+# Docker Compose — entorno completo local
 
-Levanta la infraestructura (Postgres, Pulsar, Redis) y los 4 servicios Spring Boot en un
-solo comando. Pensado para pruebas rapidas locales. Para autoescalado, ver
-[`../k8s/README.md`](../k8s/README.md).
+Levanta PostgreSQL, Pulsar, Redis, los seis servicios de negocio y `bff-service`.
+El BFF es el único punto de entrada HTTP usado por el frontend y por Postman.
 
-## Contenido
-
-```
-docker-compose/
-├── docker-compose.yml    Infra + pulsar-init (one-shot) + 4 servicios
-├── Dockerfile            Compartido por los 4 servicios; cada uno es su propio modulo Gradle (arg SERVICE)
-├── .env.example          Plantilla de variables (copiar a .env)
-└── postgres-init/        Script que crea la base hda_usuarios en el primer arranque
-```
-
-Los servicios leen host/credenciales por variables de entorno; en compose apuntan a los
-**nombres de servicio internos** (`postgres`, `pulsar`, `redis`, `usuarios-service`), no a
-`localhost`.
-
-El compose incluye ademas un servicio one-shot `pulsar-init` que crea el tenant `hda` y
-los namespaces (`hda/trabajos`, `hda/integracion`, `hda/notificaciones`) antes de arrancar
-los servicios que publican/consumen ahi — ver la nota mas abajo.
-
-## Uso
-
-Todos los comandos se ejecutan **desde este directorio** (`deploy/docker-compose/`).
-Docker Compose lee el `.env` automaticamente desde aqui.
+## Ejecución
 
 ```bash
 cd deploy/docker-compose
-cp .env.example .env          # ajusta al menos POSTGRES_PASSWORD
-docker compose up -d          # infra + 4 servicios
+cp .env.example .env
+docker compose up -d --build
 ```
 
-Solo infra (y correr los jars por fuera con `java -jar`, como en el runbook del README raiz):
+Docker Compose inicializa las cuatro bases separadas, crea el tenant y los namespaces
+de Pulsar y construye los seis servicios de negocio más el BFF con Java 25. El servicio
+`postgres-bootstrap` crea únicamente las bases ausentes, incluso con un volumen antiguo.
 
-```bash
-docker compose up -d postgres pulsar redis
-```
+## Acceso
 
-Puertos expuestos: trabajos `8081`, integracion `8082`, notificaciones `8083`,
-usuarios `8084`.
-
-> **Tenant y namespaces de Pulsar (`pulsar-init`).** Los servicios publican y consumen en
-> topicos bajo `persistent://hda/...`, que requieren que existan el tenant `hda` y sus
-> namespaces (`hda/trabajos`, `hda/integracion`, `hda/notificaciones`). Pulsar no los crea
-> solo: sin ellos, `trabajos`, `integracion` y `notificaciones` fallan al arrancar con
-> `Namespace not found` (solo `usuarios-service` sobrevive, porque no usa Pulsar).
->
-> El servicio one-shot `pulsar-init` los crea automaticamente: espera a que Pulsar este
-> `healthy`, corre `pulsar-admin ... tenants/namespaces create` (idempotente) y termina.
-> Los tres servicios que dependen de Pulsar declaran
-> `depends_on: pulsar-init: condition: service_completed_successfully`, asi que solo
-> arrancan una vez que los namespaces existen. Es el equivalente en compose del Job
-> `pulsar-bootstrap` del flujo de k8s, y reemplaza el paso manual `pulsar-admin ... create`
-> que estaba en el runbook del README raiz.
-
-## Probar el flujo
-
-```bash
-curl -X POST http://localhost:8081/trabajos -H 'Content-Type: application/json' \
-  -d '{"clienteId":"11111111-1111-1111-1111-111111111113","categoriaServicio":"plomeria","urgencia":"ALTA","ciudad":"Bogota","origen":"MARKETPLACE","partnerId":null,"moneda":"COP"}'
-```
-
-Consulta directa a usuarios-service:
-
-```bash
-curl http://localhost:8084/usuarios/11111111-1111-1111-1111-111111111111/contacto
-```
-
-## Variables (`.env`)
-
-| Variable | Para que | Default |
+| Componente | Dirección desde el host | Uso |
 | --- | --- | --- |
-| `POSTGRES_DB` | Base de `trabajos-service` | `hda_trabajos` |
-| `POSTGRES_USUARIOS_DB` | Base de `usuarios-service` | `hda_usuarios` |
-| `POSTGRES_USER` | Usuario de Postgres | `hda` |
-| `POSTGRES_PASSWORD` | Contraseña de Postgres | `changeit` (¡cambiala!) |
-| `POSTGRES_PORT` | Puerto de Postgres publicado | `5432` |
+| BFF | `http://localhost:8090` | Único API público |
+| Pulsar Admin | `http://localhost:8087` | Administración del broker; el puerto se puede cambiar con `PULSAR_ADMIN_PORT` |
+| Trabajos | `http://localhost:8081` | Diagnóstico interno |
+| Integración | `http://localhost:8082` | Consumidor interno |
+| Notificaciones | `http://localhost:8083` | Consumidor interno |
+| Usuarios | `http://localhost:8084` | Consulta interna |
+| Proveedor | `http://localhost:8085` | Participante interno de saga |
+| Trabajo Saga | `http://localhost:8086` | Saga Log interno |
 
-El `.env` real esta en `.gitignore`; solo se versiona `.env.example`.
+Aunque los puertos internos se publican para facilitar la demostración local, clientes y
+frontend deben usar únicamente `http://localhost:8090`.
 
-> **`hda_usuarios` solo se crea en un volumen nuevo de Postgres.** El script
-> `postgres-init/01-create-usuarios-db.sh` corre automaticamente la primera vez que se
-> inicializa el volumen `pgdata` (`docker-entrypoint-initdb.d` solo se ejecuta en un volumen
-> vacio). Si ya tenias el contenedor de antes, recrea el volumen una vez:
->
-> ```bash
-> docker compose down -v
-> docker compose up -d
-> ```
-
-## Teardown
+## Prueba rápida
 
 ```bash
-docker compose down -v        # -v borra los volumenes (datos de prueba locales)
+curl http://localhost:8090/actuator/health
+
+curl -X POST http://localhost:8090/api/v1/trabajos \
+  -H 'Content-Type: application/json' \
+  -d '{"clienteId":"11111111-1111-1111-1111-111111111113","categoriaServicio":"plomeria","urgencia":"MEDIA","ciudad":"Bogota","origen":"MARKETPLACE","partnerId":null,"moneda":"COP"}'
 ```
+
+Para probar los caminos exitoso y compensado completos, importe la colección de
+[`../../docs/postman`](../../docs/postman/README.md).
+
+## Reinicializar datos
+
+Los scripts de `postgres-init/` solo se ejecutan al crear el volumen. Para volver a las
+semillas deterministas:
+
+```bash
+docker compose down -v
+docker compose up -d --build
+```
+
+Este comando borra únicamente los volúmenes locales de esta composición.

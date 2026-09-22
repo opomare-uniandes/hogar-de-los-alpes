@@ -66,7 +66,7 @@ variable "ecr_repo_prefix" {
 variable "app_names" {
   description = "Application names that need an ECR repository, matching the local Docker image names"
   type        = list(string)
-  default     = ["trabajos-service", "integracion-service", "notificaciones-service", "usuarios-service", "proveedor-service", "trabajo-saga-service"]
+  default     = ["trabajos-service", "integracion-service", "notificaciones-service", "usuarios-service", "proveedor-service", "trabajo-saga-service", "bff-service"]
 }
 
 variable "eks_version" {

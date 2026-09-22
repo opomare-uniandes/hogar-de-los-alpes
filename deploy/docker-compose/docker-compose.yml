@@ -1,5 +1,4 @@
-# Entorno local completo (infra + 6 servicios: los 4 de la Entrega 4 mas proveedor-service
-# y trabajo-saga-service de la Entrega 5) para pruebas rapidas.
+# Entorno local completo (infra + 6 servicios de negocio + BFF) para pruebas rapidas.
 #
 # Uso (desde deploy/docker-compose/):
 #   cp .env.example .env   # ajusta al menos POSTGRES_PASSWORD
@@ -42,13 +41,54 @@ services:
       timeout: 5s
       retries: 10
 
+  # Idempotente incluso cuando el volumen de Postgres ya existía antes de agregar
+  # proveedor-service y trabajo-saga-service. No elimina ni recrea información.
+  postgres-bootstrap:
+    image: postgres:18-alpine
+    container_name: hda-postgres-bootstrap
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-changeit}
+      POSTGRES_USER: ${POSTGRES_USER:-hda}
+      POSTGRES_USUARIOS_DB: ${POSTGRES_USUARIOS_DB:-hda_usuarios}
+      POSTGRES_PROVEEDOR_DB: ${POSTGRES_PROVEEDOR_DB:-hda_proveedor}
+      POSTGRES_TRABAJO_SAGA_DB: ${POSTGRES_TRABAJO_SAGA_DB:-hda_trabajo_saga}
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        set -e
+        # pg_isready puede confirmar el socket local unas fracciones antes de que
+        # PostgreSQL acepte conexiones TCP desde otro contenedor. Esperamos de
+        # forma acotada para evitar una carrera durante el primer arranque.
+        for attempt in $$(seq 1 30); do
+          if psql -h postgres -U "$${POSTGRES_USER}" -d postgres -tAc "SELECT 1" >/dev/null 2>&1; then
+            break
+          fi
+          if [ "$${attempt}" -eq 30 ]; then
+            echo "PostgreSQL no aceptó conexiones TCP a tiempo." >&2
+            exit 1
+          fi
+          sleep 2
+        done
+        for database in "$${POSTGRES_USUARIOS_DB}" "$${POSTGRES_PROVEEDOR_DB}" "$${POSTGRES_TRABAJO_SAGA_DB}"; do
+          exists="$$(psql -h postgres -U "$${POSTGRES_USER}" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$${database}'")"
+          if [ "$${exists}" != "1" ]; then
+            psql -h postgres -U "$${POSTGRES_USER}" -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$${database}\" OWNER \"$${POSTGRES_USER}\";"
+          fi
+        done
+        echo "Bases de datos de servicios listas."
+
   pulsar:
     image: apachepulsar/pulsar:4.2.4
     container_name: hda-pulsar
     command: bin/pulsar standalone
     ports:
       - "6650:6650"   # protocolo binario (productores/consumidores)
-      - "8080:8080"   # admin REST + schema registry
+      - "${PULSAR_ADMIN_PORT:-8087}:8080"   # admin REST + schema registry (8080 queda para el BFF directo)
     healthcheck:
       test: ["CMD-SHELL", "bin/pulsar-admin brokers healthcheck || exit 1"]
       interval: 10s
@@ -101,8 +141,8 @@ services:
     image: hda/trabajos-service:local
     container_name: hda-trabajos
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-bootstrap:
+        condition: service_completed_successfully
       pulsar-init:
         condition: service_completed_successfully
     environment:
@@ -179,8 +219,8 @@ services:
     image: hda/usuarios-service:local
     container_name: hda-usuarios
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-bootstrap:
+        condition: service_completed_successfully
     environment:
       <<: *otel-env
       POSTGRES_HOST: postgres
@@ -203,8 +243,8 @@ services:
     image: hda/proveedor-service:local
     container_name: hda-proveedor
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-bootstrap:
+        condition: service_completed_successfully
       pulsar-init:
         condition: service_completed_successfully
     environment:
@@ -227,8 +267,8 @@ services:
     image: hda/trabajo-saga-service:local
     container_name: hda-trabajo-saga
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-bootstrap:
+        condition: service_completed_successfully
       pulsar-init:
         condition: service_completed_successfully
     environment:
@@ -241,6 +281,28 @@ services:
       PULSAR_ADMIN_URL: http://pulsar:8080
     ports:
       - "8086:8086"
+
+  # Unico punto de entrada HTTP publico. El puerto 8090 del host evita colisionar con
+  # el puerto 8080 que Pulsar usa para administracion; dentro de la red escucha en 8080.
+  bff-service:
+    build:
+      context: ../../backend
+      dockerfile: ../deploy/docker-compose/Dockerfile
+      args:
+        SERVICE: bff
+    image: hda/bff-service:local
+    container_name: hda-bff
+    depends_on:
+      trabajos-service:
+        condition: service_started
+      trabajo-saga-service:
+        condition: service_started
+    environment:
+      TRABAJOS_SERVICE_BASE_URL: http://trabajos-service:8081
+      TRABAJO_SAGA_SERVICE_BASE_URL: http://trabajo-saga-service:8086
+      BFF_UPSTREAM_TIMEOUT: ${BFF_UPSTREAM_TIMEOUT:-3s}
+    ports:
+      - "8090:8080"
 
 volumes:
   pgdata:

@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bff-service
+  namespace: hda
+  labels: { app: bff-service }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: bff-service }
+  template:
+    metadata:
+      labels: { app: bff-service }
+    spec:
+      containers:
+        - name: bff-service
+          image: __BFF_IMAGE__
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: TRABAJOS_SERVICE_BASE_URL
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: TRABAJOS_SERVICE_BASE_URL } }
+            - name: TRABAJO_SAGA_SERVICE_BASE_URL
+              valueFrom: { configMapKeyRef: { name: hda-endpoints, key: TRABAJO_SAGA_SERVICE_BASE_URL } }
+            - name: BFF_UPSTREAM_TIMEOUT
+              value: "3s"
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8080 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8080 }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests: { memory: "256Mi", cpu: "100m" }
+            limits: { memory: "512Mi", cpu: "500m" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bff-service
+  namespace: hda
+spec:
+  selector: { app: bff-service }
+  ports:
+    - port: 8080
+      targetPort: 8080

@@ -1,9 +1,10 @@
-# Dockerfile compartido por los 4 servicios de Hogar de los Alpes.
+# Dockerfile compartido por los servicios de Hogar de los Alpes y su BFF.
 #
 # El build context es backend/ (ver docker-compose.yml). Cada servicio es su propio
 # modulo Gradle bootable (p. ej. :trabajos-application, en trabajos/application/),
 # con su propio classpath -- construir uno no compila ni empaqueta los otros tres.
-# SERVICE selecciona cual (trabajos | integracion | notificaciones | usuarios).
+# SERVICE selecciona cual (bff | trabajos | integracion | notificaciones | usuarios |
+# proveedor | trabajo-saga).
 #
 # Patron de 3 etapas inspirado en poc-pulsar-scaling:
 #   1) build Gradle    2) extraccion por capas    3) runtime con AOT cache.
@@ -13,7 +14,8 @@ FROM bellsoft/liberica-openjdk-debian:25 AS gradle-builder
 WORKDIR /build
 COPY . .
 ARG SERVICE
-RUN chmod +x gradlew && \
+RUN --mount=type=cache,target=/root/.gradle \
+    chmod +x gradlew && \
     ./gradlew --no-daemon ":${SERVICE}-application:bootJar"
 
 FROM bellsoft/liberica-openjre-debian:25-cds AS builder

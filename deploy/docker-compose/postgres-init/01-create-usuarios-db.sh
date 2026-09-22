@@ -5,8 +5,10 @@
 # docker-entrypoint-initdb.d SOLO corre estos scripts la primera vez que se inicializa
 # el volumen de datos de Postgres (volumen vacio). Si ya tenias el contenedor corriendo
 # de antes de que existiera este script, hay que recrear el volumen para que se aplique:
-#   docker compose --env-file backend/.env -f backend/docker-compose.yml down -v
-#   docker compose --env-file backend/.env -f backend/docker-compose.yml up -d
+#   docker compose --env-file deploy/docker-compose/.env \
+#     -f deploy/docker-compose/docker-compose.yml down -v
+#   docker compose --env-file deploy/docker-compose/.env \
+#     -f deploy/docker-compose/docker-compose.yml up -d
 set -euo pipefail
 
 DB_USUARIOS="${POSTGRES_USUARIOS_DB:-hda_usuarios}"
